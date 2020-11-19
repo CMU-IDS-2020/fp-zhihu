@@ -1,3 +1,4 @@
 altair
 google-cloud-bigquery
 pandas
+wordcloud

@@ -3,6 +3,7 @@ import numpy as np
 import os
 import pandas as pd
 import streamlit as st
+from wordcloud import WordCloud
 
 from google.cloud import bigquery
 
@@ -47,13 +48,17 @@ def get_table(table_name, max_results=10000):
 
 
 @st.cache
-def get_all_users(location=None, user_id=None):
+def get_all_users(location=None, user_id=None, reputation_thres=None):
+
     if location:
-        questions_query = f"SELECT id, display_name, reputation, up_votes, down_votes FROM `bigquery-public-data.stackoverflow.users` WHERE location IN {serialization(location)}"
+        questions_query = f"WHERE location IN {serialization(location)}"
     elif user_id:
-        questions_query = f"SELECT id, display_name, reputation, up_votes, down_votes FROM `bigquery-public-data.stackoverflow.users` WHERE id IN {serialization(user_id)}"
+        questions_query = f"WHERE id IN {serialization(user_id)}"
+    elif reputation_thres:
+        questions_query = f"WHERE reputation >= {reputation_thres}"
     else:
-        questions_query = f"SELECT id, display_name, reputation, up_votes, down_votes FROM `bigquery-public-data.stackoverflow.users`"
+        questions_query = ""
+    questions_query = f"SELECT id, display_name, reputation, up_votes, down_votes FROM `bigquery-public-data.stackoverflow.users` " + questions_query
 
     # Set up the query (cancel the query if it would use too much of
     # your quota, with the limit set to 1 GB)
@@ -129,5 +134,11 @@ def get_tag_by_question(qid):
 
 
 st.write(get_table('users', 3))
-st.write(get_answered_questions_by_user(3043))
+# st.write(get_answered_questions_by_user(3043))
 st.write(get_all_users(user_id=[3043, 2493]))
+df = get_all_users(reputation_thres=500000)
+bigV = df['id'].to_list()
+st.write(len(bigV), bigV)
+answer_question = get_answered_questions_by_user(bigV)
+st.write(answer_question)
+# TODO: visualize the tag by wordcloud
