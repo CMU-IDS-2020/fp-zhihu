@@ -40,6 +40,14 @@ def serialization(id):
 
 
 @st.cache
+def get_qid2uid():
+    return np.load('qid2uid.npy')
+
+
+qid2uid = get_qid2uid()
+
+
+@st.cache
 def get_table(table_name, max_results=10000):
     # Construct a reference to the "posts_answers" table
     answers_table_ref = dataset_ref.table(table_name)
@@ -175,6 +183,15 @@ def get_tag_freq_by_user(user_id):
 
 
 @st.cache
+def get_comments(user_id):
+    query = f"SELECT c.post_id, c.user_id \
+    FROM `bigquery-public-data.stackoverflow.comments` AS c \
+    WHERE c.user_id IN {serialization(user_id)}"
+    query_job = client.query(query, job_config=safe_config)
+    return query_job.to_dataframe()
+
+
+@st.cache
 def get_user_interaction():
     # query = f"SELECT q.owner_user_id, a.owner_user_id, COUNT(1)\
     # FROM `bigquery-public-data.stackoverflow.posts_questions` AS q \
@@ -183,25 +200,45 @@ def get_user_interaction():
     # WHERE a.owner_user_id IN {serialization(user_id)} AND q.owner_user_id IN {serialization(user_id)} \
     # GROUP BY "
     users = pd.read_csv('users.csv')
+    user2idx = {u: i for i, u in enumerate(users['id'])}
     answers = pd.read_csv('answers.csv')
-    questions = pd.read_csv('questions.csv')
     uu = np.zeros([len(users), len(users)])
-    qid2uid = {}
-    for qid, uid in zip(questions['id'], questions['owner_user_id']):
-        qid2uid[qid] = uid
     for qid, uid in zip(answers['qid'], answers['uid']):
-        try:
-            uid2 = qid2uid[qid]
+        uid2 = qid2uid[qid]
+        if uid2 in user2idx:
+            uid, uid2 = user2idx[uid], user2idx[uid2]
             uu[uid, uid2] += 1
             uu[uid2, uid] += 1
-        except:
-            continue
+    return uu.max(axis=1)
+
+
+@st.cache
+def get_uu_by_comment():
+    users = pd.read_csv('users.csv')
+    u0 = users['id'].to_list()
+    comments = get_comments(u0)
+    st.write(len(comments))
+    user2idx = {u: i for i, u in enumerate(u0)}
+    uu = np.zeros([len(u0), len(u0)])
+    for uid, qid in zip(comments['user_id'], comments['post_id']):
+        if qid < len(qid2uid) and qid2uid[qid] in user2idx:
+            u1 = user2idx[uid]
+            u2 = user2idx[qid2uid[qid]]
+            uu[u1, u2] += 1
+            uu[u2, u1] += 1
     return uu.max(axis=1)
 
 
 # st.write(get_table('users', 3))
 # st.write(get_answered_questions_by_user(3043))
 # st.write(get_all_users(user_id=[3043, 2493]))
+
+# st.write(get_uu_by_comment())
+
+# df = get_all_users(reputation_thres=1000000)
+# bigV = df['id'].to_list()
+# comments = get_comments(bigV)
+# st.write(len(comments), comments.head())
 
 # word cloud
 df = get_all_users(reputation_thres=100000)
@@ -214,6 +251,13 @@ st.image(wc.generate_from_frequencies(freq).to_image(),
 
 # u-u interaction in QA
 p = get_user_interaction()
+p.sort()
+p = p[p > 0]
+fig, ax = plt.subplots()
+ax.plot(range(len(p)), p[::-1])
+st.pyplot(fig)
+# u-u interaction in QA
+p = get_uu_by_comment()
 p.sort()
 p = p[p > 0]
 fig, ax = plt.subplots()
