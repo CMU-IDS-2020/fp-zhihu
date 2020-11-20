@@ -1,13 +1,17 @@
 import altair as alt
+from collections import Counter
 import numpy as np
 import os
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 
 from google.cloud import bigquery
 
 # global variables definition
+
+MAX_WIDTH = 700
 
 # update the secret to env
 # this credential file should not commit to github
@@ -49,7 +53,6 @@ def get_table(table_name, max_results=10000):
 
 @st.cache
 def get_all_users(location=None, user_id=None, reputation_thres=None):
-
     if location:
         questions_query = f"WHERE location IN {serialization(location)}"
     elif user_id:
@@ -129,16 +132,90 @@ def get_tag_by_question(qid):
     # API request - run the query, and return a pandas DataFrame
     questions_results = questions_query_job.to_dataframe()
 
-    res = questions_results.iloc[0, 0].split('|')
+    res = questions_results['tags']
     return res
 
 
-st.write(get_table('users', 3))
+@st.cache
+def get_question_tag_by_user(user_id):
+    tag_query = f"SELECT tags \
+        FROM `bigquery-public-data.stackoverflow.posts_questions` \
+        WHERE owner_user_id IN {serialization(user_id)}"
+    questions_query_job = client.query(tag_query, job_config=safe_config)
+    questions_results = questions_query_job.to_dataframe()
+    return questions_results
+
+
+@st.cache
+def get_answer_tag_by_user(user_id):
+    tag_query = f"SELECT q.tags \
+    FROM `bigquery-public-data.stackoverflow.posts_questions` AS q \
+    INNER JOIN `bigquery-public-data.stackoverflow.posts_answers` AS a \
+        ON q.id = a.parent_id \
+    WHERE a.owner_user_id IN {serialization(user_id)}"
+    questions_query_job = client.query(tag_query, job_config=safe_config)
+    questions_results = questions_query_job.to_dataframe()
+    return questions_results
+
+
+@st.cache
+def process_tags(tag_list):
+    tags = []
+    for i in tag_list:
+        tags += i.split('|')
+    return Counter(tags)
+
+
+@st.cache
+def get_tag_freq_by_user(user_id):
+    qt = get_question_tag_by_user(user_id)
+    at = get_answer_tag_by_user(user_id)
+    freq = process_tags(qt['tags'].to_list() + at['tags'].to_list())
+    return freq
+
+
+@st.cache
+def get_user_interaction():
+    # query = f"SELECT q.owner_user_id, a.owner_user_id, COUNT(1)\
+    # FROM `bigquery-public-data.stackoverflow.posts_questions` AS q \
+    # INNER JOIN `bigquery-public-data.stackoverflow.posts_answers` AS a \
+    #     ON q.id = a.parent_id \
+    # WHERE a.owner_user_id IN {serialization(user_id)} AND q.owner_user_id IN {serialization(user_id)} \
+    # GROUP BY "
+    users = pd.read_csv('users.csv')
+    answers = pd.read_csv('answers.csv')
+    questions = pd.read_csv('questions.csv')
+    uu = np.zeros([len(users), len(users)])
+    qid2uid = {}
+    for qid, uid in zip(questions['id'], questions['owner_user_id']):
+        qid2uid[qid] = uid
+    for qid, uid in zip(answers['qid'], answers['uid']):
+        try:
+            uid2 = qid2uid[qid]
+            uu[uid, uid2] += 1
+            uu[uid2, uid] += 1
+        except:
+            continue
+    return uu.max(axis=1)
+
+
+# st.write(get_table('users', 3))
 # st.write(get_answered_questions_by_user(3043))
-st.write(get_all_users(user_id=[3043, 2493]))
-df = get_all_users(reputation_thres=500000)
+# st.write(get_all_users(user_id=[3043, 2493]))
+
+# word cloud
+df = get_all_users(reputation_thres=100000)
 bigV = df['id'].to_list()
-st.write(len(bigV), bigV)
-answer_question = get_answered_questions_by_user(bigV)
-st.write(answer_question)
-# TODO: visualize the tag by wordcloud
+st.write(len(bigV))
+freq = get_tag_freq_by_user(bigV)
+wc = WordCloud(background_color="white", width=MAX_WIDTH * 2, height=400)
+st.image(wc.generate_from_frequencies(freq).to_image(),
+         use_column_width=True)
+
+# u-u interaction in QA
+p = get_user_interaction()
+p.sort()
+p = p[p > 0]
+fig, ax = plt.subplots()
+ax.plot(range(len(p)), p[::-1])
+st.pyplot(fig)

@@ -1,4 +1,5 @@
 altair
 google-cloud-bigquery
+matplotlib
 pandas
 wordcloud

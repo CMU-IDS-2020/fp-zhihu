@@ -1,2 +1,5 @@
+*.csv
+*.npz
 gcloud.json
 proxychains.conf
+.ipynb_checkpoints/
