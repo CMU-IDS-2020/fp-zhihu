@@ -3,3 +3,6 @@ google-cloud-bigquery
 matplotlib
 pandas
 wordcloud
+tqdm
+scikit-learn
+scipy
