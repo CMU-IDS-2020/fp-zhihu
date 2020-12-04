@@ -140,7 +140,8 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
     for d, v in zip(date_str, data.values()):
         if d != '/':
             result += v[d].to_list()
-    np.save('test', result)
+    if len(result) == 0:
+        return
     name = data["users"]["display_name"][0]
     for y in reversed(list(range(min(result).year, max(result).year + 1))):
         raw = []
@@ -224,7 +225,8 @@ def get_multi_user_timeline(data: dict) -> None:
                     raw_single += [[i['id']]]
                     qid2t[i['id']] = i['title']
                 raw.append(raw_single)
-    qid2t.update(qid2title(qid))
+    if len(qid) > 0:
+        qid2t.update(qid2title(qid))
     raw = sorted(raw)[::-1]
     stack = []
     for info in raw:
@@ -280,6 +282,12 @@ def get_multi_user_timeline(data: dict) -> None:
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="mx-5 py-5">
+      <div class="card border-light">
+        <div class="card-body">
+          <h3 class="card-text">Social Overflow (friends' page)</h3>
+        </div>
+      </div>
+      <div class="container py-1"></div>
 CONTENT
         <div class="text-center py-1"><small class="text-muted">No more result</small></div>
       </div>
