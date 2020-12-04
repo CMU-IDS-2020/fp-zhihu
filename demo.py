@@ -154,6 +154,7 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
         while t < end:
             raw.append((t, getweek(t), 0))
             t += delta
+        # draw bubble
         df = pd.DataFrame(raw, columns=['time', 'week', 'Contribution'])
         ph.write(alt.Chart(df).mark_circle().encode(
             x=alt.X('week:O', axis=alt.Axis(title='Week')),
@@ -161,8 +162,35 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
             size=alt.Size('sum(Contribution):Q', legend=None),
             color=alt.Color('sum(Contribution):N',
                             scale=alt.Scale(scheme="greens")),
-            tooltip=['yearmonthdate(time)', 'sum(Contribution)'],
+            tooltip=[
+                alt.Tooltip('yearmonthdate(time)', title='Date'),
+                alt.Tooltip('sum(Contribution)', title='Contribution'),
+            ],
         ).properties(title=f'{name}\'s Contributions in Year {y}'))
+    # draw other figures
+    raw = [[i, str(i.isoweekday()) + '-' + i.strftime("%A"),
+            i.hour, i.month, i.year, 1] for i in result]
+    df = pd.DataFrame(
+        raw, columns=['time', 'Date', 'Hour', 'Month', 'Year', 'Contribution'])
+    chart = {'Date': alt.Chart(df).mark_bar().encode(
+        x=alt.X('sum(Contribution)', axis=alt.Axis(title='Contribution')),
+        y=alt.Y('Date:N'),
+        tooltip=[
+            'Date',
+            alt.Tooltip('sum(Contribution)', title='Contribution'),
+        ]
+    ).properties(title=f'{name}\'s Contributions over Date', height=300)}
+    for key in ['Hour', 'Month', 'Year']:
+        chart[key] = alt.Chart(df).mark_line().encode(
+            x=alt.X(key + ':Q'),
+            y=alt.Y('sum(Contribution)', axis=alt.Axis(title='Contribution')),
+            tooltip=[
+                key,
+                alt.Tooltip('sum(Contribution)', title='Contribution'),
+            ]
+        ).properties(title=f'{name}\'s Contributions over {key}')
+    ph.write((chart['Date'] | chart['Hour']) &
+             (chart['Month'] | chart['Year']))
 
 
 def convert(title: str) -> str:
@@ -223,7 +251,7 @@ def get_multi_user_timeline(data: dict) -> None:
     content = ''
     for info in stack:
         tm, tname, uid, info = info
-        username = f'<a href="https://stackoverflow.com/users/{uid}/" target="_blank">{uid2name[uid]}</a>' 
+        username = f'<a href="https://stackoverflow.com/users/{uid}/" target="_blank">{uid2name[uid]}</a>'
         if tname == 'badges':
             icon = 'fa-check-square-o'
             info = 'Your friend got ' + ', '.join([f'{v}x {k} badge{"s" if v > 1 else ""}' for k, v in Counter(info).items()]) + ', congratulations!'
@@ -268,8 +296,12 @@ if __name__ == '__main__':
         'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
         value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
         format="MM/DD/YY")
-
-    user_t = get_user_timeline([2686, 3122, 2795, 4855], *a)
-    get_single_user_timeline(user_t[3122])
-    # user_t.pop(3122)
-    get_multi_user_timeline(user_t)
+    col1, col2 = st.beta_columns(2)
+    with col1:
+        base = int(st.text_input('Input base user id', '3122'))
+    with col2:
+        friend = list(map(int, st.text_input(
+            'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
+    user_t = get_user_timeline([base] + friend, *a)
+    get_single_user_timeline(user_t[base])
+    get_multi_user_timeline({i: user_t[i] for i in friend})
