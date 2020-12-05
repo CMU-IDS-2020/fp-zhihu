@@ -39,7 +39,7 @@ def serialization(id):
     if not isinstance(id, list):
         id = [id]
     if isinstance(id[0], str):
-        id = ['`' + i + '`' for i in id]
+        id = ["'" + i + "'" for i in id]
     else:
         id = [str(i) for i in id]
     return '(' + ','.join(id) + ')'
@@ -297,6 +297,93 @@ CONTENT
     """.replace('CONTENT', content), height=900, scrolling=True)
 
 
+def get_answer_time_for_each_tag(tags):
+    tags = serialization(tags)
+    # change query date range
+    st.write(tags)
+    questions_query = f"""
+        WITH question_answers_join AS (
+      SELECT *
+        , GREATEST(1, TIMESTAMP_DIFF(answers.first, creation_date, minute)) minutes_2_answer
+      FROM (
+        SELECT id, creation_date, title
+          , (SELECT AS STRUCT MIN(creation_date) first, COUNT(*) c
+             FROM `bigquery-public-data.stackoverflow.posts_answers` 
+             WHERE a.id=parent_id
+          ) answers
+          , SPLIT(tags, '|') tags
+        FROM `bigquery-public-data.stackoverflow.posts_questions` a
+        WHERE EXTRACT(year FROM creation_date) > 2008
+      )
+    )
+   SELECT COUNT(*) questions, tag
+      , ROUND(EXP(AVG(LOG(minutes_2_answer))), 2) avg_minutes
+      , COUNT(minutes_2_answer)/COUNT(*) chance_of_answer
+    FROM question_answers_join, UNNEST(tags) tag
+    WHERE tag IN {tags}
+    GROUP BY tag
+    ORDER BY avg_minutes
+    """
+
+    safe_config = bigquery.QueryJobConfig(maximum_bytes_billed=10**10)
+    questions_query_job = client.query(questions_query, job_config=safe_config)
+
+    # API request - run the query, and return a pandas DataFrame
+    questions_results = questions_query_job.to_dataframe()
+    # return questions_results.set_index('tag').T.to_dict('dict')
+    return questions_results
+
+# get_answer_time(['python', 'pandas'])
+def get_answer_time_for_all_tags(tags):
+    tags = ["tags LIKE '%"+t+"%'"for t in tags]
+    tags = " AND ".join(tags)
+    # change query date range
+    questions_query = f"""
+        WITH question_answers_join AS (
+      SELECT *
+        , GREATEST(1, TIMESTAMP_DIFF(answers.first, creation_date, minute)) minutes_2_answer
+      FROM (
+        SELECT id, creation_date, title
+          , (SELECT AS STRUCT MIN(creation_date) first, COUNT(*) c
+             FROM `bigquery-public-data.stackoverflow.posts_answers` 
+             WHERE a.id=parent_id
+          ) answers
+          , tags
+        FROM `bigquery-public-data.stackoverflow.posts_questions` a
+        WHERE EXTRACT(year FROM creation_date) > 2008
+      )
+    )
+   SELECT COUNT(*) questions, ROUND(EXP(AVG(LOG(minutes_2_answer))), 2) avg_minutes
+      , COUNT(minutes_2_answer)/COUNT(*) chance_of_answer
+    FROM question_answers_join
+    WHERE {tags}
+    """
+    safe_config = bigquery.QueryJobConfig(maximum_bytes_billed=10**10)
+    questions_query_job = client.query(questions_query, job_config=safe_config)
+
+    # API request - run the query, and return a pandas DataFrame
+    questions_results = questions_query_job.to_dataframe()
+    res = {'num_of_question': questions_results.loc[0,'questions'], 'avg_minutes': questions_results.loc[0,'avg_minutes'], 'chance_of_answer': questions_results.loc[0,'chance_of_answer']}
+    return res
+
+def show_estimated_times(tags):
+    df = get_answer_time_for_each_tag(tags)
+    st.write(alt.Chart(df).mark_circle().encode(
+            x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
+            y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
+            size=alt.Size('questions:Q', legend=None),
+            color=alt.Color('tag:N'),
+            tooltip=[
+                alt.Tooltip('tag'),
+                alt.Tooltip('avg_minutes'),
+                alt.Tooltip('chance_of_answer'),
+            ],
+        ).properties(title=f'Estimated answer time and answer rate for each tag'))
+
+    res = get_answer_time_for_all_tags(tags)
+    st.write(f"The estimated answer time for all tags combined is {res['avg_minutes']}")
+    st.write(f"The estimated answer rate for all tags combined is {res['chance_of_answer']}")
+
 if __name__ == '__main__':
     if st.checkbox('Show raw data'):
         show_raw()
@@ -313,3 +400,8 @@ if __name__ == '__main__':
     user_t = get_user_timeline([base] + friend, *a)
     get_single_user_timeline(user_t[base])
     get_multi_user_timeline({i: user_t[i] for i in friend})
+
+    tags = [t.strip() for t in st.text_input(
+            'Input tags, "," seperated', "python, pandas, numpy").split(',')]
+    show_estimated_times(tags)
+    
