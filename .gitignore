@@ -3,3 +3,4 @@
 gcloud.json
 proxychains.conf
 .ipynb_checkpoints/
+data/
