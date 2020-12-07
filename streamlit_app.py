@@ -143,18 +143,21 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
     selector = alt.selection_single(name="SelectorName", fields=['year'],
                                     bind=slider, init={'year': 2020})
     df = pd.DataFrame(raw, columns=['time', 'year', 'week', 'Contribution'])
-    ph.write(alt.Chart(df).mark_circle().encode(
+    scale = alt.Scale(
+        range=["#F0F0F0", 'white', 'green'],
+        domain=[0,1,10]
+    )
+    ph.write(alt.Chart(df).mark_rect().encode(
         x=alt.X('week:O', axis=alt.Axis(title='Week')),
         y=alt.Y('day(time):O', axis=alt.Axis(title='Day')),
-        size=alt.Size('sum(Contribution):Q', legend=None),
-        color=alt.Color('sum(Contribution):N',
-                        scale=alt.Scale(scheme="greens")),
+        color=alt.Color('sum(Contribution):Q',
+                        scale=scale),
         tooltip=[
             alt.Tooltip('yearmonthdate(time)', title='Date'),
             alt.Tooltip('sum(Contribution)', title='Contribution'),
         ],
     ).add_selection(selector).transform_filter(selector).properties(
-        title=f'{name}\'s Contributions', width=MAX_WIDTH))
+        title=f'{name}\'s Contributions', width=MAX_WIDTH, height=150).configure_scale(bandPaddingInner=0.2))
     # st.write("TODO: analyze these results")
 
     def transform_dt(dt, c=0):
@@ -198,7 +201,7 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
                 hour_name = 'at midnight'
             return f"He/She would like to work <b>{hour_name}</b>."
         elif key=='Month':
-            month_number = str(max_index+1)
+            month_number = str(max_index)
             datetime_object = datetime.strptime(month_number, "%m")
             month_name = datetime_object.strftime("%B")
             return f"He/She works most actively in <b>{month_name}</b>."
