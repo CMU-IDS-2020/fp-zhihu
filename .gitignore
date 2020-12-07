@@ -4,3 +4,5 @@ gcloud.json
 proxychains.conf
 .ipynb_checkpoints/
 data/
+.key
+__pycache__
