@@ -363,7 +363,7 @@ def get_answer_time_for_all_tags(tags):
       )
     )
     SELECT COUNT(*) questions, ROUND(EXP(AVG(LOG(minutes_2_answer))), 2) avg_minutes
-      , COUNT(minutes_2_answer)/COUNT(*) chance_of_answer
+      , COALESCE(COUNT(minutes_2_answer)/NULLIF(COUNT(*) , 0), 0) chance_of_answer
     FROM question_answers_join
     WHERE {tags}
     """
@@ -381,23 +381,27 @@ def get_answer_time_for_all_tags(tags):
 
 
 def show_estimated_times(tags):
-    df = get_answer_time_for_each_tag(tags)
-    st.write(alt.Chart(df).mark_circle().encode(
-        x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
-        y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
-        size=alt.Size('questions:Q', legend=None),
-        color=alt.Color('tag:N'),
-        tooltip=[
-            alt.Tooltip('tag'),
-            alt.Tooltip('avg_minutes'),
-            alt.Tooltip('chance_of_answer'),
-        ],
-    ).properties(title=f'Estimated answer time and answer rate for each tag'))
+    if st.checkbox('Show estimated answer time and answer rate for each tag'):
+        df = get_answer_time_for_each_tag(tags)
+        st.write(alt.Chart(df).mark_circle().encode(
+            x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
+            y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
+            size=alt.Size('questions:Q', legend=None),
+            color=alt.Color('tag:N'),
+            tooltip=[
+                alt.Tooltip('tag'),
+                alt.Tooltip('avg_minutes'),
+                alt.Tooltip('chance_of_answer'),
+                alt.Tooltip('questions'),
+            ],
+        ).properties(title=f'Estimated answer time and answer rate for each tag'))
 
     res = get_answer_time_for_all_tags(tags)
-    st.write(f"The estimated answer time for all tags combined is {res['avg_minutes']}")
-    st.write(f"The estimated answer rate for all tags combined is {res['chance_of_answer']}")
-
+    if res['avg_minutes']!=np.nan:
+        st.write(f"<font color=black>The estimated answer time for these tags combined is <b>{'{0:.0f}'.format(res['avg_minutes'])}</b> minutes.</font>", unsafe_allow_html=True)
+        st.write(f"The estimated answer rate for these tags combined is <b>{'{0:.2f}%'.format(res['chance_of_answer']*100)}</b>.", unsafe_allow_html=True)
+    else:
+        st.write(f"Sorry, no estimation because you are the first one to ask these types of question. ")
 
 def narrative():
     st.write('# Stack Overflow Helper')
@@ -411,25 +415,29 @@ def narrative():
 
 
 def tag_user_recommendation():
-    rec_user_id = recommend.get_recommendation_by_tag_id(
-        [1327, 13399, 19023], k=10)
-    st.write(rec_user_id)
-
-    name_str = recommend.get_tag_name_by_id([1327, 13399, 19023])
-    st.write(name_str)
-    st.write(recommend.get_tag_id_by_name(name_str))
-    st.write('---')
-
+    st.header('Recommendations based on question tags')
+    question = st.text_input('Input question (Optional)', "How to convert pandas dataframe to numpy array?")
     tags = [t.strip() for t in st.text_input(
-            'Input tags, "," seperated', "python, pandas, numpy").split(',')]
+            'Input question tags, "," seperated', "python, pandas, numpy").split(',')]
     show_estimated_times(tags)
     tag_id = recommend.get_tag_id_by_name(tags)
-    user_id = recommend.get_recommendation_by_tag_id(tag_id, k=5)
-    user_df = get_user_info(user_id.tolist())
-    for i, (uid, username) in enumerate(zip(user_df['id'], user_df['display_name'])):
-        st.write(f'{i}: [{username}](https://stackoverflow.com/users/{uid})')
-    st.write(user_df)
 
+    st.header('Recommended users for your question')
+    user_num = st.slider('Select the top k users recommended for you:', 0, 20, 5)
+    user_id = recommend.get_recommendation_by_tag_id(tag_id, k=user_num)
+    user_df = get_user_info(user_id.tolist())
+    if st.checkbox('Show raw data for recommended users'):
+        st.write(user_df)
+    user_detail = st.checkbox('Show details for each user')
+    for i, uid in enumerate(user_id):
+        row = user_df.loc[user_df['id'] == uid]
+        username = row['display_name'].values[0]
+        intro = row['about_me'].values[0]
+        st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
+        if intro and user_detail:
+            st.write(intro, unsafe_allow_html=True)
+        elif user_detail:
+            st.write('No introduction provided')
 
 def single_user():
     st.markdown("# Personal Profile Page")
