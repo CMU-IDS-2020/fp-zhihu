@@ -334,8 +334,10 @@ def get_answer_time_for_each_tag(tags):
     return questions_results
 
 # get_answer_time(['python', 'pandas'])
+
+
 def get_answer_time_for_all_tags(tags):
-    tags = ["tags LIKE '%"+t+"%'"for t in tags]
+    tags = ["tags LIKE '%" + t + "%'"for t in tags]
     tags = " AND ".join(tags)
     # change query date range
     questions_query = f"""
@@ -363,26 +365,32 @@ def get_answer_time_for_all_tags(tags):
 
     # API request - run the query, and return a pandas DataFrame
     questions_results = questions_query_job.to_dataframe()
-    res = {'num_of_question': questions_results.loc[0,'questions'], 'avg_minutes': questions_results.loc[0,'avg_minutes'], 'chance_of_answer': questions_results.loc[0,'chance_of_answer']}
+    res = {
+        'num_of_question': questions_results.loc[0, 'questions'],
+        'avg_minutes': questions_results.loc[0, 'avg_minutes'],
+        'chance_of_answer': questions_results.loc[0, 'chance_of_answer']
+    }
     return res
+
 
 def show_estimated_times(tags):
     df = get_answer_time_for_each_tag(tags)
     st.write(alt.Chart(df).mark_circle().encode(
-            x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
-            y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
-            size=alt.Size('questions:Q', legend=None),
-            color=alt.Color('tag:N'),
-            tooltip=[
-                alt.Tooltip('tag'),
-                alt.Tooltip('avg_minutes'),
-                alt.Tooltip('chance_of_answer'),
-            ],
-        ).properties(title=f'Estimated answer time and answer rate for each tag'))
+        x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
+        y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
+        size=alt.Size('questions:Q', legend=None),
+        color=alt.Color('tag:N'),
+        tooltip=[
+            alt.Tooltip('tag'),
+            alt.Tooltip('avg_minutes'),
+            alt.Tooltip('chance_of_answer'),
+        ],
+    ).properties(title=f'Estimated answer time and answer rate for each tag'))
 
     res = get_answer_time_for_all_tags(tags)
     st.write(f"The estimated answer time for all tags combined is {res['avg_minutes']}")
     st.write(f"The estimated answer rate for all tags combined is {res['chance_of_answer']}")
+
 
 if __name__ == '__main__':
     if st.checkbox('Show raw data'):
@@ -404,4 +412,3 @@ if __name__ == '__main__':
     tags = [t.strip() for t in st.text_input(
             'Input tags, "," seperated', "python, pandas, numpy").split(',')]
     show_estimated_times(tags)
-    
