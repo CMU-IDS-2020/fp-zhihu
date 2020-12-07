@@ -445,7 +445,7 @@ def tag_user_recommendation():
 
 def single_user():
     st.markdown("# Personal Profile Page")
-    uid = int(st.text_input('Input user id', '3122'))
+    uid = int(st.text_input('Input user id', '16241'))
     user_data = get_user_timeline([uid])
     get_single_user_timeline(user_data[uid])
 
@@ -458,11 +458,33 @@ def multi_user():
     with col2:
         friend = list(map(int, st.text_input(
             'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
+
+    st.header('Recommended users for following')
+    recommend.reset_followings(base, friend)
+    user_num = st.slider(
+        'Select the top k users recommended for you:', 0, 20, 5)
+    user_id = recommend.recommend_users_by_history(base, k=user_num)
+    user_df = get_user_info(user_id.tolist())
+    if st.checkbox('Show raw data for recommended users'):
+        st.write(user_df)
+    user_detail = st.checkbox('Show details for each user')
+    for i, uid in enumerate(user_id):
+        row = user_df.loc[user_df['id'] == uid]
+        username = row['display_name'].values[0]
+        intro = row['about_me'].values[0]
+        st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid}), (user id {uid})')
+        if intro and user_detail:
+            st.write(intro, unsafe_allow_html=True)
+        elif user_detail:
+            st.write('No introduction provided')
+
+    st.markdown('---')
     timestamp = st.slider(
         'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
         value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
         format="MM/DD/YY")
     user_data = get_user_timeline([base] + friend, *timestamp)
+
     get_multi_user_timeline(
         {i: user_data[i] for i in friend}, user_data[base]['users'])
 

@@ -56,12 +56,12 @@ class Recommend:
         candidate_index = np.argsort(scores)[-k:][::-1]
         return self.index2id[candidate_index]
 
-    def add_followings(self, follower, following_list):
+    def reset_followings(self, follower, following_list):
         if not isinstance(following_list, list):
             following_list = [following_list]
         key = self.users[follower]
         followee = self.users[following_list].tolist()
-        self.followings[key] = self.followings.get(key, []) + followee
+        self.followings = {key: followee}
 
     def get_tag_id_by_name(self, name_list) -> np.ndarray:
         if not isinstance(name_list, list):
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     for i in range(5):
         candidates = r.recommend_users_by_history(3460, 5)
         print(candidates)
-        r.add_followings(3460, candidates[0])
+        r.reset_followings(3460, candidates[0])
     name_str = r.get_tag_name_by_id([1327, 13399, 19023])
     print(name_str)  # [0, 1, 2]
     print(r.get_tag_id_by_name(name_str))  # [1327, 13399, 19023]
