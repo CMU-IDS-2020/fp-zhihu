@@ -12,8 +12,6 @@
 
 Kaggle dataset: https://www.kaggle.com/stackoverflow/stackoverflow
 
-Google docs: https://docs.google.com/document/d/1BuXJjwbxksyaO1tbilEzrA3XHOtwqVsW9OM3AM5wwhk/edit
-
 ## Work distribution
 
 Update towards the end of the project.

@@ -7,10 +7,16 @@ class Recommend:
     def __init__(self):
         tag_df = pd.read_csv('data/tags.csv').dropna(subset=["id", "tag_name"])
         tag_id = tag_df['id'].to_numpy()
+        tag_names = tag_df['tag_name'].to_list()
         self.tag_id2index = np.zeros(tag_id.max() + 1, np.int)
         for i, t in enumerate(tag_id):
             self.tag_id2index[t] = i
         self.tag_index2id = tag_id
+        self.tag_name2index = {}
+        self.tag_index2name = np.array(["" for i in range(tag_id.max() + 1)], np.object)
+        for i, n in enumerate(tag_names):
+            self.tag_name2index[n] = i
+            self.tag_index2name[i] = n
 
         self.user_weighted_atag = load_npz(
             'data/user_weighted_atag.npz').toarray()
@@ -57,6 +63,20 @@ class Recommend:
         followee = self.users[following_list].tolist()
         self.followings[key] = self.followings.get(key, []) + followee
 
+    def get_tag_id_by_name(self, name_list) -> np.ndarray:
+        if not isinstance(name_list, list):
+            name_list = [name_list]
+        result = []
+        for n in name_list:
+            if n in self.tag_name2index:
+                result.append(self.tag_index2id[self.tag_name2index[n]])
+        return np.array(result)
+
+    def get_tag_name_by_id(self, id) -> list:
+        index = self.tag_id2index[id]
+        result = self.tag_index2name[index].tolist()
+        return [i for i in result if i]
+
 
 if __name__ == '__main__':
     r = Recommend()
@@ -66,3 +86,6 @@ if __name__ == '__main__':
         candidates = r.recommend_users_by_history(3460, 5)
         print(candidates)
         r.add_followings(3460, candidates[0])
+    name_str = r.get_tag_name_by_id([1327, 13399, 19023])
+    print(name_str)  # [0, 1, 2]
+    print(r.get_tag_id_by_name(name_str))  # [1327, 13399, 19023]

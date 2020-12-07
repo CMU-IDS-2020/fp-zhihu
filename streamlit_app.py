@@ -1,10 +1,9 @@
 from collections import Counter
 from datetime import datetime
 from google.cloud import bigquery
-from global_var import MAX_WIDTH, PREFIX
-from global_var import table_name, user_id_str, date_str, safe_config
+from global_var import table_name, user_id_str, date_str
+from global_var import MAX_WIDTH, PREFIX, recommend, safe_config
 from multiprocessing import Pool
-from recommend import Recommend
 import altair as alt
 import base64
 import numpy as np
@@ -44,6 +43,15 @@ def qid2title(qid):
     aid2qid = {a: p for a, p in zip(df1['id'], df1['parent_id'])}
     qid2title = {i: t for i, t in zip(df2['id'], df2['title'])}
     return {q: qid2title.get(aid2qid.get(q, q), "this question") for q in qid}
+
+
+@st.cache(hash_funcs={bigquery.Client: lambda _: None})
+def get_user_info(user_id):
+    if not isinstance(user_id, list):
+        user_id = [user_id]
+    if len(user_id) == 0:
+        return None
+    return get_query(f'SELECT * FROM `{PREFIX}.users` WHERE id in {serialization(user_id)}')
 
 
 @st.cache(hash_funcs={bigquery.Client: lambda _: None})
@@ -299,8 +307,6 @@ def get_answer_time_for_each_tag(tags):
     # return questions_results.set_index('tag').T.to_dict('dict')
     return questions_results
 
-# get_answer_time(['python', 'pandas'])
-
 
 def get_answer_time_for_all_tags(tags):
     tags = ["tags LIKE '%" + t + "%'"for t in tags]
@@ -358,29 +364,66 @@ def show_estimated_times(tags):
     st.write(f"The estimated answer rate for all tags combined is {res['chance_of_answer']}")
 
 
-def main():
-    if not os.path.exists('.key'):
-        key = np.array([6, 14, 14, 6, 11, 4, 30, 0, 15, 15, 11, 8, 2, 0, 19, 8,
-                        14, 13, 30, 2, 17, 4, 3, 4, 13, 19, 8, 0, 11, 18])
-        os.environ[''.join(map(chr, key + 65))] = '.key'
-        open('.key', 'wb').write(
-            base64.b64decode(open('data/key', 'rb').read()))
-    a = st.slider(
-        'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
-        value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
-        format="MM/DD/YY")
-    col1, col2 = st.beta_columns([1, 3])
-    with col1:
-        base = int(st.text_input('Input base user id', '3122'))
-    with col2:
-        friend = list(map(int, st.text_input(
-            'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
-    user_t = get_user_timeline([base] + friend, *a)
-    get_single_user_timeline(user_t[base])
-    get_multi_user_timeline({i: user_t[i] for i in friend})
+def narrative():
+    st.write("TODO")
+
+
+def tag_user_recommendation():
+    rec_user_id = recommend.get_recommendation_by_tag_id(
+        [1327, 13399, 19023], k=10)
+    st.write(rec_user_id)
+
+    name_str = recommend.get_tag_name_by_id([1327, 13399, 19023])
+    st.write(name_str)
+    st.write(recommend.get_tag_id_by_name(name_str))
+    st.write('---')
+
     tags = [t.strip() for t in st.text_input(
             'Input tags, "," seperated', "python, pandas, numpy").split(',')]
     show_estimated_times(tags)
+    tag_id = recommend.get_tag_id_by_name(tags)
+    user_id = recommend.get_recommendation_by_tag_id(tag_id, k=5)
+    user_df = get_user_info(user_id.tolist())
+    for i, (uid, username) in enumerate(zip(user_df['id'], user_df['display_name'])):
+        st.write(f'{i}: [{username}](https://stackoverflow.com/users/{uid})')
+    st.write(user_df)
+
+
+def user_user_recommendation():
+    pass
+
+
+def main():
+    st.write('# Stack Overflow Helper')
+    st.markdown('''
+        > GitHub project page: https://github.com/CMU-IDS-2020/fp-zhihu
+
+        > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
+    ''')
+    function_mapping = {
+        'Project description and motivation': lambda: narrative(),
+        'Tag-User recommendation': lambda: tag_user_recommendation(),
+        'User-User recommendation': lambda: user_user_recommendation(),
+    }
+    st.sidebar.write('Navigation')
+    option = st.sidebar.selectbox("Playground", list(function_mapping.keys()))
+    st.sidebar.markdown('---')
+    st.markdown('---')
+    function_mapping[option]()
+
+    # a = st.slider(
+    #     'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
+    #     value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
+    #     format="MM/DD/YY")
+    # col1, col2 = st.beta_columns([1, 3])
+    # with col1:
+    #     base = int(st.text_input('Input base user id', '3122'))
+    # with col2:
+    #     friend = list(map(int, st.text_input(
+    #         'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
+    # user_t = get_user_timeline([base] + friend, *a)
+    # get_single_user_timeline(user_t[base])
+    # get_multi_user_timeline({i: user_t[i] for i in friend})
 
 
 if __name__ == '__main__':

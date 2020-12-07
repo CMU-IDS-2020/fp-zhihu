@@ -1,8 +1,9 @@
 altair
-google-cloud-bigquery
-matplotlib
+google-cloud-bigquery 
+google-cloud-bigquery-storage
+opentelemetry-api 
+opentelemetry-instrumentation
 pandas
-wordcloud
 tqdm
 scikit-learn
 scipy
