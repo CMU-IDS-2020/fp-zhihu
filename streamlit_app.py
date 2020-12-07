@@ -293,7 +293,7 @@ def get_multi_user_timeline(data: dict, baseuser) -> None:
       <div class="mx-5 py-5">
       <div class="card border-light">
         <div class="card-body">
-          <h3 class="card-text">Social Overflow (page of BASEUSER's friends)</h3>
+          <h3 class="card-text">Social Overflow (friends of BASEUSER)</h3>
         </div>
       </div>
       <div class="container py-1"></div>
@@ -397,11 +397,12 @@ def show_estimated_times(tags):
         ).properties(title=f'Estimated answer time and answer rate for each tag'))
 
     res = get_answer_time_for_all_tags(tags)
-    if res['avg_minutes']!=np.nan:
+    if res['avg_minutes'] != np.nan:
         st.write(f"<font color=black>The estimated answer time for these tags combined is <b>{'{0:.0f}'.format(res['avg_minutes'])}</b> minutes.</font>", unsafe_allow_html=True)
         st.write(f"The estimated answer rate for these tags combined is <b>{'{0:.2f}%'.format(res['chance_of_answer']*100)}</b>.", unsafe_allow_html=True)
     else:
         st.write(f"Sorry, no estimation because you are the first one to ask these types of question. ")
+
 
 def narrative():
     st.write('# Stack Overflow Helper')
@@ -416,14 +417,16 @@ def narrative():
 
 def tag_user_recommendation():
     st.header('Recommendations based on question tags')
-    question = st.text_input('Input question (Optional)', "How to convert pandas dataframe to numpy array?")
+    question = st.text_input('Input question (Optional)',
+                             "How to convert pandas dataframe to numpy array?")
     tags = [t.strip() for t in st.text_input(
             'Input question tags, "," seperated', "python, pandas, numpy").split(',')]
     show_estimated_times(tags)
     tag_id = recommend.get_tag_id_by_name(tags)
 
     st.header('Recommended users for your question')
-    user_num = st.slider('Select the top k users recommended for you:', 0, 20, 5)
+    user_num = st.slider(
+        'Select the top k users recommended for you:', 0, 20, 5)
     user_id = recommend.get_recommendation_by_tag_id(tag_id, k=user_num)
     user_df = get_user_info(user_id.tolist())
     if st.checkbox('Show raw data for recommended users'):
@@ -438,6 +441,7 @@ def tag_user_recommendation():
             st.write(intro, unsafe_allow_html=True)
         elif user_detail:
             st.write('No introduction provided')
+
 
 def single_user():
     st.markdown("# Personal Profile Page")
@@ -454,12 +458,13 @@ def multi_user():
     with col2:
         friend = list(map(int, st.text_input(
             'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
-    a = st.slider(
+    timestamp = st.slider(
         'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
         value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
         format="MM/DD/YY")
-    user_data = get_user_timeline([base] + friend, *a)
-    get_multi_user_timeline({i: user_data[i] for i in friend}, user_data[base]['users'])
+    user_data = get_user_timeline([base] + friend, *timestamp)
+    get_multi_user_timeline(
+        {i: user_data[i] for i in friend}, user_data[base]['users'])
 
 
 def user_user_recommendation():
