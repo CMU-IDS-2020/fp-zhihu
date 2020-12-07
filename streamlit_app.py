@@ -124,47 +124,6 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
     name = data["users"]["display_name"][0]
     st.write(f'User\'s Stack Overflow Page: [{name}](https://stackoverflow.com/users/{uid})')
 
-    def transform_dt(dt, c=0):
-        return [dt, str(dt.isoweekday()) + '-' +
-                dt.strftime("%A"), dt.hour, dt.month, dt.year, c]
-    # draw other figures
-    raw = [transform_dt(i, 1) for i in result]
-    # append null data
-    for i in range(24):
-        dt = datetime(2020, 1, 1, i, 0)
-        raw.append(transform_dt(dt))
-    for i in range(7):
-        dt = datetime(2020, 1, i + 1)
-        raw.append(transform_dt(dt))
-    for i in range(12):
-        dt = datetime(2020, i + 1, 1)
-        raw.append(transform_dt(dt))
-    for i in range(2008, 2020):
-        dt = datetime(i, 1, 1)
-        raw.append(transform_dt(dt))
-
-    df = pd.DataFrame(
-        raw, columns=['time', 'Date', 'Hour', 'Month', 'Year', 'Contribution'])
-    chart = {'Date': alt.Chart(df).mark_bar().encode(
-        x=alt.X('sum(Contribution)', axis=alt.Axis(title='Contribution')),
-        y=alt.Y('Date:N'),
-        tooltip=[
-            'Date',
-            alt.Tooltip('sum(Contribution)', title='Contribution'),
-        ]
-    ).properties(title=f'{name}\'s Contributions over Date', height=300)}
-    for key in ['Hour', 'Month', 'Year']:
-        chart[key] = alt.Chart(df).mark_bar().encode(
-            x=alt.X(key + ':N'),
-            y=alt.Y('sum(Contribution)', axis=alt.Axis(title='Contribution')),
-            tooltip=[
-                key,
-                alt.Tooltip('sum(Contribution)', title='Contribution'),
-            ]
-        ).properties(
-            title=f'{name}\'s Contributions over {key}')
-    ph.write((chart['Date'] & chart['Hour']) &
-             (chart['Month'] | chart['Year']))
     # draw bubble
     raw = []
     # fill valid data
@@ -195,9 +154,75 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
             alt.Tooltip('sum(Contribution)', title='Contribution'),
         ],
     ).add_selection(selector).transform_filter(selector).properties(
-        title=f'{name}\'s Contributions'))
-    st.write("TODO: analyze these results")
+        title=f'{name}\'s Contributions', width=MAX_WIDTH))
+    # st.write("TODO: analyze these results")
 
+    def transform_dt(dt, c=0):
+        return [dt, str(dt.isoweekday()) + '-' +
+                dt.strftime("%A"), dt.hour, dt.month, dt.year, c]
+    # draw other figures
+    raw = [transform_dt(i, 1) for i in result]
+    # append null data
+    for i in range(24):
+        dt = datetime(2020, 1, 1, i, 0)
+        raw.append(transform_dt(dt))
+    for i in range(7):
+        dt = datetime(2020, 1, i + 1)
+        raw.append(transform_dt(dt))
+    for i in range(12):
+        dt = datetime(2020, i + 1, 1)
+        raw.append(transform_dt(dt))
+    for i in range(2008, 2020):
+        dt = datetime(i, 1, 1)
+        raw.append(transform_dt(dt))
+
+    df = pd.DataFrame(
+        raw, columns=['time', 'Date', 'Hour', 'Month', 'Year', 'Contribution'])
+    
+    def get_max_index(key):
+        dff = df.groupby([key], as_index=False)['Contribution'].sum()
+        max_index =dff['Contribution'].argmax()
+        max_index = dff.loc[max_index, key]
+        if key=='Date':
+            return f"He/She works most on <b>{max_index[2:]}</b>."
+        elif key=='Hour':
+            if max_index>=0 and max_index<=6:
+                hour_name = 'early in the morning'
+            elif max_index>6 and max_index<=12:
+                hour_name = 'in the morning'
+            elif max_index>12 and max_index<=18:
+                hour_name = 'in the afternoon'
+            elif max_index>18 and max_index<=22:
+                hour_name = 'at night'
+            elif max_index>22 and max_index<=24:
+                hour_name = 'at midnight'
+            return f"He/She would like to work <b>{hour_name}</b>."
+        elif key=='Month':
+            month_number = str(max_index+1)
+            datetime_object = datetime.strptime(month_number, "%m")
+            month_name = datetime_object.strftime("%B")
+            return f"He/She works most actively in <b>{month_name}</b>."
+        elif key=='Year':
+            return f"He/She contributed most in <b>{max_index}</b>."
+        
+    st.subheader('User Habits 🧐')
+    options = st.multiselect( 'Find contribution over',['Hour', 'Date', 'Month', 'Year'], ['Hour', 'Date'])
+    chart = {}
+    for key in ['Date', 'Hour', 'Month', 'Year']:
+        chart[key] = alt.Chart(df).mark_bar().encode(
+            x=alt.X(key + ':N'),
+            y=alt.Y('sum(Contribution)', axis=alt.Axis(title='Contribution')),
+            tooltip=[
+                key,
+                alt.Tooltip('sum(Contribution)', title='Contribution'),
+            ]
+        ).properties(
+            title=f'{name}\'s Contributions over {key}', height=300, width=500)
+    for o in options:
+        ph.write(chart[o])
+        ph.write(get_max_index(o), unsafe_allow_html=True)
+        ph.write('----')
+    
 
 def convert(title: str) -> str:
     return title.replace('<', '').replace('>', '')
