@@ -1,3 +1,4 @@
+from altair import datum
 from collections import Counter
 from datetime import datetime
 from google.cloud import bigquery
@@ -39,7 +40,8 @@ def qid2title(qid):
     query2 = f"""
         SELECT id, title from `{PREFIX}.posts_questions`
         WHERE id in {serialization(qid)}"""
-    df1, df2 = Pool(2).map(get_query, [query1, query2])
+    with Pool(2) as p:
+        df1, df2 = p.map(get_query, [query1, query2])
     aid2qid = {a: p for a, p in zip(df1['id'], df1['parent_id'])}
     qid2title = {i: t for i, t in zip(df2['id'], df2['title'])}
     return {q: qid2title.get(aid2qid.get(q, q), "this question") for q in qid}
@@ -56,7 +58,7 @@ def get_user_info(user_id):
 
 @st.cache(hash_funcs={bigquery.Client: lambda _: None})
 def get_user_timeline(
-    user_id, start=datetime(2019, 9, 10), end=datetime(2020, 9, 10)
+    user_id, start=datetime(2008, 8, 1), end=datetime(2020, 9, 10)
 ):
     if not isinstance(user_id, list):
         user_id = [user_id]
@@ -70,7 +72,8 @@ def get_user_timeline(
             if d != '/':
                 query += f" AND {d} BETWEEN '{start}' AND '{end}'"
             query_list.append(query)
-    raw = Pool(len(query_list)).map(get_query, query_list)
+    with Pool(len(query_list)) as p:
+        raw = p.map(get_query, query_list)
     result = {}
     for uid in user_id:
         result[uid] = {}
@@ -107,41 +110,39 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
     :param data: the piece of output of get_user_timeline, {table: df}
     :param ph: placeholder, whether to write the result
     """
+    if len(data['users']) == 0:
+        st.write("No such user :(")
+        return
     result = []
     for d, v in zip(date_str, data.values()):
         if d != '/':
             result += v[d].to_list()
     if len(result) == 0:
+        st.write("This user has literary no record :(")
         return
+    uid = data["users"]["id"][0]
     name = data["users"]["display_name"][0]
-    for y in reversed(list(range(min(result).year, max(result).year + 1))):
-        raw = []
-        # fill valid data
-        for t in result:
-            if t.year == y:
-                raw.append((t, getweek(t), 1))
-        # fill null data
-        t, delta, end = pd.Timestamp(y, 1, 1), pd.Timedelta(
-            days=1), pd.Timestamp(y + 1, 1, 1)
-        while t < end:
-            raw.append((t, getweek(t), 0))
-            t += delta
-        # draw bubble
-        df = pd.DataFrame(raw, columns=['time', 'week', 'Contribution'])
-        ph.write(alt.Chart(df).mark_circle().encode(
-            x=alt.X('week:O', axis=alt.Axis(title='Week')),
-            y=alt.Y('day(time):O', axis=alt.Axis(title='Day')),
-            size=alt.Size('sum(Contribution):Q', legend=None),
-            color=alt.Color('sum(Contribution):N',
-                            scale=alt.Scale(scheme="greens")),
-            tooltip=[
-                alt.Tooltip('yearmonthdate(time)', title='Date'),
-                alt.Tooltip('sum(Contribution)', title='Contribution'),
-            ],
-        ).properties(title=f'{name}\'s Contributions in Year {y}'))
+    st.write(f'User\'s Stack Overflow Page: [{name}](https://stackoverflow.com/users/{uid})')
+
+    def transform_dt(dt, c=0):
+        return [dt, str(dt.isoweekday()) + '-' +
+                dt.strftime("%A"), dt.hour, dt.month, dt.year, c]
     # draw other figures
-    raw = [[i, str(i.isoweekday()) + '-' + i.strftime("%A"),
-            i.hour, i.month, i.year, 1] for i in result]
+    raw = [transform_dt(i, 1) for i in result]
+    # append null data
+    for i in range(24):
+        dt = datetime(2020, 1, 1, i, 0)
+        raw.append(transform_dt(dt))
+    for i in range(7):
+        dt = datetime(2020, 1, i + 1)
+        raw.append(transform_dt(dt))
+    for i in range(12):
+        dt = datetime(2020, i + 1, 1)
+        raw.append(transform_dt(dt))
+    for i in range(2008, 2020):
+        dt = datetime(i, 1, 1)
+        raw.append(transform_dt(dt))
+
     df = pd.DataFrame(
         raw, columns=['time', 'Date', 'Hour', 'Month', 'Year', 'Contribution'])
     chart = {'Date': alt.Chart(df).mark_bar().encode(
@@ -153,27 +154,61 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
         ]
     ).properties(title=f'{name}\'s Contributions over Date', height=300)}
     for key in ['Hour', 'Month', 'Year']:
-        chart[key] = alt.Chart(df).mark_line().encode(
-            x=alt.X(key + ':Q'),
+        chart[key] = alt.Chart(df).mark_bar().encode(
+            x=alt.X(key + ':N'),
             y=alt.Y('sum(Contribution)', axis=alt.Axis(title='Contribution')),
             tooltip=[
                 key,
                 alt.Tooltip('sum(Contribution)', title='Contribution'),
             ]
-        ).properties(title=f'{name}\'s Contributions over {key}')
-    ph.write((chart['Date'] | chart['Hour']) &
+        ).properties(
+            title=f'{name}\'s Contributions over {key}')
+    ph.write((chart['Date'] & chart['Hour']) &
              (chart['Month'] | chart['Year']))
+    # draw bubble
+    raw = []
+    # fill valid data
+    years = []
+    for t in result:
+        raw.append((t, t.year, getweek(t), 1))
+        years.append(t.year)
+    years = sorted(list(set(years)))
+    for y in years:
+        # fill null data
+        t, delta, end = pd.Timestamp(y, 1, 1), pd.Timedelta(
+            days=1), pd.Timestamp(y + 1, 1, 1)
+        while t < end:
+            raw.append((t, y, getweek(t), 0))
+            t += delta
+    slider = alt.binding_range(min=2008, max=2020, step=1, name='Year: ')
+    selector = alt.selection_single(name="SelectorName", fields=['year'],
+                                    bind=slider, init={'year': 2020})
+    df = pd.DataFrame(raw, columns=['time', 'year', 'week', 'Contribution'])
+    ph.write(alt.Chart(df).mark_circle().encode(
+        x=alt.X('week:O', axis=alt.Axis(title='Week')),
+        y=alt.Y('day(time):O', axis=alt.Axis(title='Day')),
+        size=alt.Size('sum(Contribution):Q', legend=None),
+        color=alt.Color('sum(Contribution):N',
+                        scale=alt.Scale(scheme="greens")),
+        tooltip=[
+            alt.Tooltip('yearmonthdate(time)', title='Date'),
+            alt.Tooltip('sum(Contribution)', title='Contribution'),
+        ],
+    ).add_selection(selector).transform_filter(selector).properties(
+        title=f'{name}\'s Contributions'))
+    st.write("TODO: analyze these results")
 
 
 def convert(title: str) -> str:
     return title.replace('<', '').replace('>', '')
 
 
-def get_multi_user_timeline(data: dict) -> None:
+def get_multi_user_timeline(data: dict, baseuser) -> None:
     """
     :param data: the full output of get_user_timeline, {uid: {table: df}}
     """
     uid2name = {u: data[u]['users']["display_name"][0] for u in data}
+    baseuser = f'<a href="https://stackoverflow.com/users/{baseuser["id"][0]}/" target="_blank">{baseuser["display_name"][0]}</a>'
     table_date = {t: d for t, d in zip(table_name, date_str)}
     qid = []
     qid2t = {}
@@ -258,7 +293,7 @@ def get_multi_user_timeline(data: dict) -> None:
       <div class="mx-5 py-5">
       <div class="card border-light">
         <div class="card-body">
-          <h3 class="card-text">Social Overflow (friends' page)</h3>
+          <h3 class="card-text">Social Overflow (page of BASEUSER's friends)</h3>
         </div>
       </div>
       <div class="container py-1"></div>
@@ -270,7 +305,7 @@ def get_multi_user_timeline(data: dict) -> None:
     </div>
   </div>
 </div>
-    """.replace('CONTENT', content), height=900, scrolling=True)
+    """.replace('CONTENT', content).replace("BASEUSER", baseuser), height=900, scrolling=True)
 
 
 def get_answer_time_for_each_tag(tags):
@@ -365,6 +400,13 @@ def show_estimated_times(tags):
 
 
 def narrative():
+    st.write('# Stack Overflow Helper')
+    st.markdown('''
+        > GitHub project page: https://github.com/CMU-IDS-2020/fp-zhihu
+
+        > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
+    ''')
+    st.markdown('---')
     st.write("TODO")
 
 
@@ -389,41 +431,47 @@ def tag_user_recommendation():
     st.write(user_df)
 
 
+def single_user():
+    st.markdown("# Personal Profile Page")
+    uid = int(st.text_input('Input user id', '3122'))
+    user_data = get_user_timeline([uid])
+    get_single_user_timeline(user_data[uid])
+
+
+def multi_user():
+    st.markdown("# Social Overflow")
+    col1, col2 = st.beta_columns([1, 3])
+    with col1:
+        base = int(st.text_input('Input base user id', '3122'))
+    with col2:
+        friend = list(map(int, st.text_input(
+            'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
+    a = st.slider(
+        'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
+        value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
+        format="MM/DD/YY")
+    user_data = get_user_timeline([base] + friend, *a)
+    get_multi_user_timeline({i: user_data[i] for i in friend}, user_data[base]['users'])
+
+
 def user_user_recommendation():
-    pass
+    st.sidebar.markdown('---')
+    function_mapping = {
+        'Personal Profile Page': lambda: single_user(),
+        'User Recommend and Timeline': lambda: multi_user(),
+    }
+    option = st.sidebar.selectbox("Page", list(function_mapping.keys()))
+    function_mapping[option]()
 
 
 def main():
-    st.write('# Stack Overflow Helper')
-    st.markdown('''
-        > GitHub project page: https://github.com/CMU-IDS-2020/fp-zhihu
-
-        > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
-    ''')
     function_mapping = {
-        'Project description and motivation': lambda: narrative(),
-        'Tag-User recommendation': lambda: tag_user_recommendation(),
-        'User-User recommendation': lambda: user_user_recommendation(),
+        'Project Description and Motivation': lambda: narrative(),
+        'Tag-User Recommendation': lambda: tag_user_recommendation(),
+        'User-User Recommendation': lambda: user_user_recommendation(),
     }
-    st.sidebar.write('Navigation')
-    option = st.sidebar.selectbox("Playground", list(function_mapping.keys()))
-    st.sidebar.markdown('---')
-    st.markdown('---')
+    option = st.sidebar.selectbox("Navigation", list(function_mapping.keys()))
     function_mapping[option]()
-
-    # a = st.slider(
-    #     'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
-    #     value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
-    #     format="MM/DD/YY")
-    # col1, col2 = st.beta_columns([1, 3])
-    # with col1:
-    #     base = int(st.text_input('Input base user id', '3122'))
-    # with col2:
-    #     friend = list(map(int, st.text_input(
-    #         'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
-    # user_t = get_user_timeline([base] + friend, *a)
-    # get_single_user_timeline(user_t[base])
-    # get_multi_user_timeline({i: user_t[i] for i in friend})
 
 
 if __name__ == '__main__':
