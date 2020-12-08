@@ -13,7 +13,8 @@ class Recommend:
             self.tag_id2index[t] = i
         self.tag_index2id = tag_id
         self.tag_name2index = {}
-        self.tag_index2name = np.array(["" for i in range(tag_id.max() + 1)], np.object)
+        self.tag_index2name = np.array(
+            ["" for i in range(tag_id.max() + 1)], np.object)
         for i, n in enumerate(tag_names):
             self.tag_name2index[n] = i
             self.tag_index2name[i] = n
