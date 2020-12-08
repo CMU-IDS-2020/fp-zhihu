@@ -72,7 +72,10 @@ def get_user_timeline(
         if d != '/':
             query += f" AND {d} BETWEEN '{start}' AND '{end}'"
         query_list.append(query)
-    raw = [get_query(q) for q in query_list]
+    user_Q = get_query(query_list[-1])
+    if len(user_Q) == 0:
+        return {uid: {'users': []} for uid in user_id}
+    raw = [get_query(q) for q in query_list[:-1]] + [user_Q]
     # with Pool(len(query_list)) as p:
     #     raw = p.map(get_query, query_list)
     result = {}
@@ -83,25 +86,10 @@ def get_user_timeline(
     return result
 
 
-@st.cache
 def getweek(t: datetime) -> int:
     w = t.weekofyear
     if t.day_name() == 'Sunday':
         w += 1
-    if t.month == 1 and w > 40:
-        p = t + pd.Timedelta(days=1)
-        wp = getweek(p)
-        if p.day_name() == 'Sunday':
-            w = wp - 1
-        else:
-            w = wp
-    elif t.month == 12 and w < 10:
-        p = t - pd.Timedelta(days=1)
-        wp = getweek(p)
-        if p.day_name() == 'Saturday':
-            w = wp + 1
-        else:
-            w = wp
     return w
 
 
@@ -127,18 +115,14 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
     # draw bubble
     raw = []
     # fill valid data
-    years = []
     for t in result:
         raw.append((t, t.year, getweek(t), 1))
-        years.append(t.year)
-    years = sorted(list(set(years)))
-    for y in years:
-        # fill null data
-        t, delta, end = pd.Timestamp(y, 1, 1), pd.Timedelta(
-            days=1), pd.Timestamp(y + 1, 1, 1)
-        while t < end:
-            raw.append((t, y, getweek(t), 0))
-            t += delta
+    # fill null data
+    t, delta, end = pd.Timestamp(2008, 1, 1), pd.Timedelta(
+        days=1), pd.Timestamp(2020, 12, 31)
+    while t < end:
+        raw.append((t, t.year, getweek(t), 0))
+        t += delta
     slider = alt.binding_range(min=2008, max=2020, step=1, name='Year: ')
     selector = alt.selection_single(name="SelectorName", fields=['year'],
                                     bind=slider, init={'year': 2020})
