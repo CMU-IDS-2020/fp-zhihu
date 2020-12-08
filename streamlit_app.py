@@ -12,6 +12,8 @@ import os
 import pandas as pd
 import streamlit as st
 import time
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def serialization(id):
@@ -440,7 +442,105 @@ def narrative():
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
     ''')
     st.markdown('---')
-    st.write("TODO")
+
+    st.markdown('The biggest **_problem_** SO users face is that **_60%_** of questions are not answered!')
+    question_cnt_per_year = get_query("""
+            SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions
+            FROM `bigquery-public-data.stackoverflow.posts_questions`
+            GROUP BY year
+            ORDER BY year
+            """)
+    answered_question_cnt_per_year = get_query("""
+                SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions_with_answers
+                FROM `bigquery-public-data.stackoverflow.posts_questions`
+                WHERE answer_count > 0
+                GROUP BY year
+                ORDER BY year
+                """)
+    fig, ax1 = plt.subplots(figsize = (20, 8))
+    sns.set_color_codes("pastel")
+    sns.barplot(x = "year", y = "number_of_questions", data = question_cnt_per_year,
+                label = "Total Questions", color = "b", ax = ax1)
+    sns.set_color_codes("muted")
+    sns.barplot(x = "year", y = "number_of_questions_with_answers", data = answered_question_cnt_per_year,
+                label = "Questions have answers", color = "b", ax = ax1)
+    ax1.legend(ncol=2, frameon=True)
+    ax1.set(ylabel="Question Count",
+           xlabel="Year")
+    st.pyplot(fig)
+
+
+    st.header("Two Observations")
+
+    st.markdown('1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
+
+    all_tags = get_query("""
+                SELECT tag_name
+                FROM `bigquery-public-data.stackoverflow.tags`
+                WHERE count >= 1000
+                ORDER BY RAND()
+                LIMIT 15
+            """)['tag_name'].tolist()
+
+    answer_time = get_answer_time_for_each_tag(all_tags)
+
+    fig, ax1 = plt.subplots(figsize = (20, 8))
+    ax2 = ax1.twinx()
+    sns.barplot(x = "tag", y = "avg_minutes", data = answer_time,
+                label = "avg minutes to answer", color = "b", ax = ax1)
+    sns.lineplot(x = "tag", y = "chance_of_answer", data = answer_time,
+                label = "chance of answer", color = "r", ax = ax2)
+    ax1.legend(ncol=2, frameon=True)
+    ax1.tick_params(axis = 'y', colors = "b")
+    ax1.yaxis.label.set_color("b")
+    ax2.tick_params(axis = 'y', colors = "r")
+    ax2.yaxis.label.set_color("r")
+    ax1.set(ylabel="avg minutes to answer",
+           xlabel="tag")
+    ax2.set(ylabel="chance of answer",
+           xlabel="tag")
+    st.pyplot(fig)
+
+    st.markdown('2. A user tends to answer questions with **_some particular tags_**.')
+    tags_one_user = get_query("""
+                    SELECT questions.tags
+                    FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
+                    `bigquery-public-data.stackoverflow.posts_questions` questions ON answers.parent_id = questions.id
+                    WHERE answers.owner_user_id = 1694
+                    -- GROUP BY tags.tag_name
+                    """)['tags'].tolist()
+    tag_cnt = dict()
+    for tags in tags_one_user:
+        for tag in tags.split('|'):
+            if tag in tag_cnt.keys():
+                tag_cnt[tag] += 1
+            else:
+                tag_cnt[tag] = 1
+
+    tag_cnt = sorted(tag_cnt.items(), key=lambda item: item[1])
+    x = list()
+    y = list()
+    for idx in range(len(tag_cnt)):
+        x.append(idx // 26)
+        y.append(idx % 26)
+    tag_cnt = pd.DataFrame.from_records(tag_cnt, columns = ['tag', 'count'])
+    tag_cnt['x'] = x
+    tag_cnt['y'] = y
+    tag_cnt_plot = alt.Chart(tag_cnt).mark_circle(size = 200).encode(
+            x = alt.X('x', axis = alt.Axis(labels = False, title = 'Answer Counts For Tags For User 1694')), 
+            y = alt.X('y', axis = alt.Axis(labels = False)),
+            size = 'count', 
+            tooltip = ['tag', 'count']
+        ).properties(
+            width = 700,
+            height = 350
+        )
+    tag_cnt_plot
+
+    st.markdown(""" 
+            In order to **_increase answer rate_** and **_reduce answer time_**, the helper recommends 
+            users to answer particular questions based on the **_tags_**. 
+        """)
 
 
 def tag_user_recommendation():
