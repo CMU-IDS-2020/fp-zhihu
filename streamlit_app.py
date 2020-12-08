@@ -26,14 +26,14 @@ def serialization(id):
     return '(' + ','.join(id) + ')'
 
 
-@st.cache(hash_funcs={bigquery.Client: lambda _: None})
+@st.cache
 def get_query(query):
     print(time.asctime(), query)
     return bigquery.Client().query(
         query, job_config=safe_config).to_dataframe()
 
 
-@st.cache(hash_funcs={bigquery.Client: lambda _: None})
+@st.cache
 def qid2title(qid):
     qid = sorted(list(set(qid)))
     query1 = f"""
@@ -42,14 +42,15 @@ def qid2title(qid):
     query2 = f"""
         SELECT id, title from `{PREFIX}.posts_questions`
         WHERE id in {serialization(qid)}"""
-    with Pool(2) as p:
-        df1, df2 = p.map(get_query, [query1, query2])
+    df1, df2 = get_query(query1), get_query(query2)
+    # with Pool(2) as p:
+    #     df1, df2 = p.map(get_query, [query1, query2])
     aid2qid = {a: p for a, p in zip(df1['id'], df1['parent_id'])}
     qid2title = {i: t for i, t in zip(df2['id'], df2['title'])}
     return {q: qid2title.get(aid2qid.get(q, q), "this question") for q in qid}
 
 
-@st.cache(hash_funcs={bigquery.Client: lambda _: None})
+@st.cache
 def get_user_info(user_id):
     if not isinstance(user_id, list):
         user_id = [user_id]
@@ -58,7 +59,7 @@ def get_user_info(user_id):
     return get_query(f'SELECT * FROM `{PREFIX}.users` WHERE id in {serialization(user_id)}')
 
 
-@st.cache(hash_funcs={bigquery.Client: lambda _: None})
+@st.cache
 def get_user_timeline(
     user_id, start=datetime(2008, 8, 1), end=datetime(2020, 9, 10)
 ):
@@ -68,42 +69,29 @@ def get_user_timeline(
         return {}
     start, end = start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')
     query_list = []
-    for uid in user_id:
-        for t, u, d in zip(table_name, user_id_str, date_str):
-            query = f'SELECT * FROM `{PREFIX}.{t}` WHERE {u} = {uid}'
-            if d != '/':
-                query += f" AND {d} BETWEEN '{start}' AND '{end}'"
-            query_list.append(query)
-    with Pool(len(query_list)) as p:
-        raw = p.map(get_query, query_list)
+    for t, u, d in zip(table_name, user_id_str, date_str):
+        query = f'SELECT * FROM `{PREFIX}.{t}` WHERE {u} IN {serialization(user_id)}'
+        if d != '/':
+            query += f" AND {d} BETWEEN '{start}' AND '{end}'"
+        query_list.append(query)
+    user_Q = get_query(query_list[-1])
+    if len(user_Q) == 0:
+        return {uid: {'users': []} for uid in user_id}
+    raw = [get_query(q) for q in query_list[:-1]] + [user_Q]
+    # with Pool(len(query_list)) as p:
+    #     raw = p.map(get_query, query_list)
     result = {}
     for uid in user_id:
         result[uid] = {}
-        for t, r in zip(table_name, raw[:len(table_name)]):
-            result[uid][t] = r
-        raw = raw[len(table_name):]
+        for t, u, r in zip(table_name, user_id_str, raw):
+            result[uid][t] = r.loc[r[u] == uid]
     return result
 
 
-@st.cache
 def getweek(t: datetime) -> int:
     w = t.weekofyear
     if t.day_name() == 'Sunday':
         w += 1
-    if t.month == 1 and w > 40:
-        p = t + pd.Timedelta(days=1)
-        wp = getweek(p)
-        if p.day_name() == 'Sunday':
-            w = wp - 1
-        else:
-            w = wp
-    elif t.month == 12 and w < 10:
-        p = t - pd.Timedelta(days=1)
-        wp = getweek(p)
-        if p.day_name() == 'Saturday':
-            w = wp + 1
-        else:
-            w = wp
     return w
 
 
@@ -129,25 +117,21 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
     # draw bubble
     raw = []
     # fill valid data
-    years = []
     for t in result:
         raw.append((t, t.year, getweek(t), 1))
-        years.append(t.year)
-    years = sorted(list(set(years)))
-    for y in years:
-        # fill null data
-        t, delta, end = pd.Timestamp(y, 1, 1), pd.Timedelta(
-            days=1), pd.Timestamp(y + 1, 1, 1)
-        while t < end:
-            raw.append((t, y, getweek(t), 0))
-            t += delta
+    # fill null data
+    t, delta, end = pd.Timestamp(2008, 1, 1), pd.Timedelta(
+        days=1), pd.Timestamp(2020, 12, 31)
+    while t < end:
+        raw.append((t, t.year, getweek(t), 0))
+        t += delta
     slider = alt.binding_range(min=2008, max=2020, step=1, name='Year: ')
     selector = alt.selection_single(name="SelectorName", fields=['year'],
                                     bind=slider, init={'year': 2020})
     df = pd.DataFrame(raw, columns=['time', 'year', 'week', 'Contribution'])
     scale = alt.Scale(
         range=["#F0F0F0", 'white', 'green'],
-        domain=[0,1,10]
+        domain=[0, 1, 10]
     )
     ph.write(alt.Chart(df).mark_rect().encode(
         x=alt.X('week:O', axis=alt.Axis(title='Week')),
@@ -159,8 +143,8 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
             alt.Tooltip('sum(Contribution)', title='Contribution'),
         ],
     ).add_selection(selector).transform_filter(selector).properties(
-        title=f'{name}\'s Contributions', width=MAX_WIDTH, height=150).configure_scale(bandPaddingInner=0.2))
-    # st.write("TODO: analyze these results")
+        title=f'{name}\'s Contributions', width=MAX_WIDTH, height=150
+    ).configure_scale(bandPaddingInner=0.2))
 
     def transform_dt(dt, c=0):
         return [dt, str(dt.isoweekday()) + '-' +
@@ -183,35 +167,36 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
 
     df = pd.DataFrame(
         raw, columns=['time', 'Date', 'Hour', 'Month', 'Year', 'Contribution'])
-    
+
     def get_max_index(key):
         dff = df.groupby([key], as_index=False)['Contribution'].sum()
-        max_index =dff['Contribution'].argmax()
+        max_index = dff['Contribution'].argmax()
         max_index = dff.loc[max_index, key]
-        if key=='Date':
+        if key == 'Date':
             return f"He/She works most on <b>{max_index[2:]}</b>."
-        elif key=='Hour':
-            if max_index>=0 and max_index<=6:
+        elif key == 'Hour':
+            if max_index >= 0 and max_index <= 6:
                 hour_name = 'early in the morning'
-            elif max_index>6 and max_index<=12:
+            elif max_index > 6 and max_index <= 12:
                 hour_name = 'in the morning'
-            elif max_index>12 and max_index<=18:
+            elif max_index > 12 and max_index <= 18:
                 hour_name = 'in the afternoon'
-            elif max_index>18 and max_index<=22:
+            elif max_index > 18 and max_index <= 22:
                 hour_name = 'at night'
-            elif max_index>22 and max_index<=24:
+            elif max_index > 22 and max_index <= 24:
                 hour_name = 'at midnight'
             return f"He/She would like to work <b>{hour_name}</b>."
-        elif key=='Month':
+        elif key == 'Month':
             month_number = str(max_index)
             datetime_object = datetime.strptime(month_number, "%m")
             month_name = datetime_object.strftime("%B")
             return f"He/She works most actively in <b>{month_name}</b>."
-        elif key=='Year':
+        elif key == 'Year':
             return f"He/She contributed most in <b>{max_index}</b>."
-        
+
     st.subheader('User Habits 🧐')
-    options = st.multiselect( 'Find contribution over',['Hour', 'Date', 'Month', 'Year'], ['Hour', 'Date'])
+    options = st.multiselect(
+        'Find contribution over', ['Hour', 'Date', 'Month', 'Year'], ['Hour', 'Date'])
     chart = {}
     for key in ['Date', 'Hour', 'Month', 'Year']:
         chart[key] = alt.Chart(df).mark_bar().encode(
@@ -227,7 +212,7 @@ def get_single_user_timeline(data: dict, ph=st) -> None:
         ph.write(chart[o])
         ph.write(get_max_index(o), unsafe_allow_html=True)
         ph.write('----')
-    
+
 
 def convert(title: str) -> str:
     return title.replace('<', '').replace('>', '')
@@ -237,8 +222,8 @@ def get_multi_user_timeline(data: dict, baseuser) -> None:
     """
     :param data: the full output of get_user_timeline, {uid: {table: df}}
     """
-    uid2name = {u: data[u]['users']["display_name"][0] for u in data}
-    baseuser = f'<a href="https://stackoverflow.com/users/{baseuser["id"][0]}/" target="_blank">{baseuser["display_name"][0]}</a>'
+    uid2name = {u: data[u]['users']["display_name"].tolist()[0] for u in data}
+    baseuser = f'<a href="https://stackoverflow.com/users/{baseuser["id"].tolist()[0]}/" target="_blank">{baseuser["display_name"].tolist()[0]}</a>'
     table_date = {t: d for t, d in zip(table_name, date_str)}
     qid = []
     qid2t = {}
@@ -338,6 +323,7 @@ def get_multi_user_timeline(data: dict, baseuser) -> None:
     """.replace('CONTENT', content).replace("BASEUSER", baseuser), height=900, scrolling=True)
 
 
+@st.cache
 def get_answer_time_for_each_tag(tags):
     tags = serialization(tags)
     # change query date range
@@ -373,6 +359,7 @@ def get_answer_time_for_each_tag(tags):
     return questions_results
 
 
+@st.cache
 def get_answer_time_for_all_tags(tags):
     tags = ["tags LIKE '%" + t + "%'"for t in tags]
     tags = " AND ".join(tags)
