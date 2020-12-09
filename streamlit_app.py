@@ -423,13 +423,15 @@ def show_estimated_times(tags):
 def SO_current_situation():
 
     st.write("<span style='font-size:30px;'>Stack Overflow</span> is the largest online community for programmers to learn, share their knowledge, and advance their careers.", unsafe_allow_html=True)
-    st.write("Currently, it has over 10,000,000 registered users in the community who can: ")
+    st.write(
+        "Currently, it has over 10,000,000 registered users in the community who can: ")
     st.write("""
             ✅ Ask and Answer Questions \n
             ✅ Vote Questions and Answers Up or Down  \n
             ✅ Edit Other People's Posts \n
             ❓ What's more.... 
             """)
+
 
 def narrative():
     st.write('# Stack Overflow Helper')
@@ -439,7 +441,7 @@ def narrative():
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
     ''')
     st.markdown('---')
- 
+
     SO_current_situation()
 
     st.write('## What\'s the problem right now?')
@@ -458,7 +460,7 @@ def narrative():
         ORDER BY year
     """)
     result = 1 - aqpy['cnt'].sum() / qpy['cnt'].sum()
-    st.markdown(f'The biggest **_problem_** SO users face is that **_{result * 100:.2f}%_** of questions are not answered, and the trend is still going up!')
+    st.markdown(f'The biggest **_problem_** Stack Overflow users face is that **_{result * 100:.2f}%_** of questions are not answered, and the trend is still going up!')
     df = pd.DataFrame([
         (y, n, n / n, 'Total Questions') for y, n, na in zip(qpy['year'], qpy['cnt'], aqpy['cnt'])
     ] + [
@@ -533,18 +535,19 @@ def narrative():
     ).properties(width=MAX_WIDTH, height=350))
 
     # st.markdown("""
-    #     In order to **_increase answer rate_** and **_reduce answer time_**, our helper **_recommends 
-    #     users to answer particular questions_** based on the **_tags_**. 
+    #     In order to **_increase answer rate_** and **_reduce answer time_**, our helper **_recommends
+    #     users to answer particular questions_** based on the **_tags_**.
     # """)
     st.header("Our Solution: ")
     st.markdown("""
         In order to **_increase answer rate_** and **_reduce answer time_**, our helper: \n
-        ✅ Recommend users to answer particular questions based on the **_tags_**. \n
+        ✅ Recommend users to answer particular questions based on the tags. \n
         ✅ Recommend users for particular users based on their past experiences. 
     """)
-    
+
     st.markdown('---')
-    st.text("Please use the navigation selector on the sidebar to explore our application!")
+    st.text(
+        "Please use the navigation selector on the sidebar to explore our application!")
 
 
 def tag_user_recommendation():
@@ -577,15 +580,16 @@ def tag_user_recommendation():
 
 def single_user():
     st.header("Personal Profile Page")
-    st.write("The original stack overflow's user page lacks of the detailed behavior of given user, here we present additional visualization results combining with their existing functionality.")
+    st.write("The original Stack Overflow's user page lacks the detailed behavior of given user, hence we present additional visualization results together with their existing functionality.")
     uid = int(st.text_input('Input user id', '16241'))
     user_data = get_user_timeline([uid])
     get_single_user_timeline(user_data[uid])
-    st.write("You can ")
+    st.write("Click on another page at left to see the user recommendation result!")
 
 
 def multi_user():
     st.header("Social Overflow")
+    st.write("Stack Overflow currently doesn't have the social functionality inside their application. We think adding this feature will help users better find their similar users and make connections with each other, and the increasing user-user interaction will result in the higher answer rate.")
     col1, col2 = st.beta_columns([1, 3])
     with col1:
         base = int(st.text_input('Input base user id', '3122'))
@@ -618,6 +622,7 @@ def multi_user():
         value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
         format="MM/DD/YY")
     user_data = get_user_timeline([base] + friend, *timestamp)
+    st.write(f'Here is the application to see your {len(friend)} friend{"s" if len(friend) > 1 else ""}\' timeline from {timestamp[0].strftime("%Y/%m/%d")} to {timestamp[1].strftime("%Y/%m/%d")}:')
 
     get_multi_user_timeline(
         {i: user_data[i] for i in friend}, user_data[base]['users'])
