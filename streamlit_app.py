@@ -421,23 +421,24 @@ def show_estimated_times(tags):
     else:
         st.write(f"Sorry, no estimation because you are the first one to ask these types of question. ")
 
-def SO_current_situation():
 
+def SO_current_situation():
     st.write("<span style='font-size:30px;'>Stack Overflow</span> is the largest online community for programmers to learn, share their knowledge, and advance their careers.", unsafe_allow_html=True)
     st.write(
         "Currently, it has over 10,000,000 registered users in the community who can: ")
     st.write("""
-            ✅ Ask and Answer Questions \n
-            ✅ Vote Questions and Answers Up or Down  \n
-            ✅ Edit Other People's Posts \n
-            ❓ What's more.... 
-            """)
+        ✅ Ask and Answer Questions \n
+        ✅ Vote Questions and Answers Up or Down  \n
+        ✅ Edit Other People's Posts \n
+        ❓ What's more.... 
+    """)
 
 
 def narrative():
     st.write('# Stack Overflow Helper')
     st.markdown('''
         > GitHub project page: https://github.com/CMU-IDS-2020/fp-zhihu
+
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
     ''')
     st.markdown('---')
@@ -475,68 +476,70 @@ def narrative():
         tooltip=['Year', 'Count', 'Type', 'Percentage']
     ).properties(title='Question Count', width=MAX_WIDTH))
 
-    st.markdown('Another problem with SO is that **_62%_** of users are **_never_** engaged in questioning or answering.')
-    st.markdown(""" we divide users into four types: <br>
-        &nbsp;&nbsp;&nbsp;&nbsp;1. questioner: who asked at least one question; <br>
-        &nbsp;&nbsp;&nbsp;&nbsp;2. answerer: who answered at least one question; <br>
-        &nbsp;&nbsp;&nbsp;&nbsp;3. question&answerer: who is both a questioner and a answerer; <br>
-        &nbsp;&nbsp;&nbsp;&nbsp;4. do-nothinger: who never asked or answered any question. <br>
-        """, unsafe_allow_html=True)
+    st.markdown(
+        'Another problem with SO is that **_62%_** of users are **_never_** engaged in questioning or answering.')
+    st.write("We divide users into four types:")
+    st.write("1. questioner: who asked at least one question;")
+    st.write("2. answerer: who answered at least one question;")
+    st.write("3. question&answerer: who is both a questioner and a answerer;")
+    st.write("4. do-nothinger: who never asked or answered any question.")
 
     questioner = get_query('''
-                        select count(distinct q.owner_user_id)
-                        from `bigquery-public-data.stackoverflow.posts_questions` q
-                        left join `bigquery-public-data.stackoverflow.posts_answers` a
-                        on q.owner_user_id = a.owner_user_id
-                        where a.owner_user_id is null
-                        ''').iat[0,0]
+        select count(distinct q.owner_user_id)
+        from `bigquery-public-data.stackoverflow.posts_questions` q
+        left join `bigquery-public-data.stackoverflow.posts_answers` a
+        on q.owner_user_id = a.owner_user_id
+        where a.owner_user_id is null
+    ''').iat[0, 0]
 
     answerer = get_query('''
-                            select count(distinct a.owner_user_id)
-                            from `bigquery-public-data.stackoverflow.posts_answers` a
-                            left join `bigquery-public-data.stackoverflow.posts_questions` q
-                            on a.owner_user_id = q.owner_user_id
-                            where q.owner_user_id is null
-                            ''').iat[0,0]
+        select count(distinct a.owner_user_id)
+        from `bigquery-public-data.stackoverflow.posts_answers` a
+        left join `bigquery-public-data.stackoverflow.posts_questions` q
+        on a.owner_user_id = q.owner_user_id
+        where q.owner_user_id is null
+    ''').iat[0, 0]
 
     question_and_answerer = get_query('''
-                            select count( distinct q.owner_user_id)
-                            from `bigquery-public-data.stackoverflow.posts_questions` q
-                            inner join `bigquery-public-data.stackoverflow.posts_answers` a 
-                            on q.owner_user_id = a.owner_user_id
-                            ''').iat[0,0]
+        select count( distinct q.owner_user_id)
+        from `bigquery-public-data.stackoverflow.posts_questions` q
+        inner join `bigquery-public-data.stackoverflow.posts_answers` a 
+        on q.owner_user_id = a.owner_user_id
+    ''').iat[0, 0]
 
     do_nothinger = get_query('''
-                            select count(id)
-                            from `bigquery-public-data.stackoverflow.users` u
-                            left join (
-                                select distinct owner_user_id
-                                from `bigquery-public-data.stackoverflow.posts_answers`
-                                union all
-                                select distinct owner_user_id
-                                from `bigquery-public-data.stackoverflow.posts_questions`) b
-                            on u.id = b.owner_user_id
-                            where b.owner_user_id is null
-                            ''').iat[0,0]
+        select count(id)
+        from `bigquery-public-data.stackoverflow.users` u
+        left join (
+            select distinct owner_user_id
+            from `bigquery-public-data.stackoverflow.posts_answers`
+            union all
+            select distinct owner_user_id
+            from `bigquery-public-data.stackoverflow.posts_questions`) b
+        on u.id = b.owner_user_id
+        where b.owner_user_id is null
+    ''').iat[0, 0]
 
-    num_user = get_query("select count(*) from `bigquery-public-data.stackoverflow.users` ").iat[0,0]
+    num_user = get_query(
+        "select count(*) from `bigquery-public-data.stackoverflow.users` ").iat[0, 0]
 
     # Show result
-    user_type_df = pd.DataFrame({"Number of Users": [questioner, answerer, question_and_answerer, do_nothinger, num_user]})
-    user_type_df["Percentage(%)"] = round(user_type_df["Number of Users"] / num_user, 2)
-    user_type_df.index = ["Questioner", "Answerer", "Question&answerer", "Do-nothinger", "Total"]
+    user_type_df = pd.DataFrame({
+        "Number of Users": [questioner, answerer, question_and_answerer, do_nothinger, num_user]})
+    user_type_df["Percentage(%)"] = round(
+        user_type_df["Number of Users"] / num_user, 2)
+    user_type_df.index = ["Questioner", "Answerer",
+                          "Question&answerer", "Do-nothinger", "Total"]
     user_type_df.reset_index(inplace=True)
-    user_type_df.rename(columns = {'index': 'User Type'}, inplace=True)
+    user_type_df.rename(columns={'index': 'User Type'}, inplace=True)
 
     user_type_plot = alt.Chart(user_type_df).mark_bar().encode(
-            x = alt.X('Percentage(%)', axis=alt.Axis(format='.0%')),
-            y = alt.Y('User Type', sort = 'x'),
-            color = alt.Color('User Type', legend = None),
-            tooltip = ['Number of Users', alt.Tooltip('Percentage(%)', format='.0%')]
-        ).properties(width = MAX_WIDTH)
+        x=alt.X('Percentage(%)', axis=alt.Axis(format='.0%')),
+        y=alt.Y('User Type', sort='x'),
+        color=alt.Color('User Type', legend=None),
+        tooltip=['Number of Users', alt.Tooltip('Percentage(%)', format='.0%')]
+    ).properties(width=MAX_WIDTH)
     st.write(user_type_plot)
-
-
 
     st.header("How can we solve it?")
     st.subheader("Two Observations")
@@ -628,7 +631,7 @@ def tag_user_recommendation():
 
     st.header('Recommended users for this question')
     user_num = st.number_input(
-            'Select the top k users recommended', 0, 20, 5)
+        'Select the top k users recommended', 0, 20, 5)
     user_id = recommend.get_recommendation_by_tag_id(tag_id, k=user_num)
     user_df = get_user_info(user_id.tolist())
     if st.checkbox('Show raw data for recommended users'):
@@ -682,7 +685,8 @@ def multi_user():
             'Add friends by IDs, seperated by ","', "2686, 2795, 4855").split(',')))
         placeholder = st.beta_expander("Your current friends")
         st.write(' ')
-        st.write("<b style='font-size:20px;'>Recommended Users</b>", unsafe_allow_html=True)
+        st.write("<b style='font-size:20px;'>Recommended Users</b>",
+                 unsafe_allow_html=True)
         # with my_expander:
         recommend.reset_followings(base, friend)
         user_num = st.number_input(
