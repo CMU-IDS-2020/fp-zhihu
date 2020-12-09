@@ -460,7 +460,9 @@ def narrative():
         ORDER BY year
     """)
     result = 1 - aqpy['cnt'].sum() / qpy['cnt'].sum()
-    st.markdown(f'The biggest **_problem_** Stack Overflow users face is that **_{result * 100:.2f}%_** of questions are not answered, and the trend is still going up!')
+    st.markdown(f"""The biggest **_problem_** Stack Overflow users face is that **_{result * 100:.2f}%_** of 
+        questions are not answered, and the situation is getting worse! In year 2020, **_35.26%_** of questions have not been answered!
+        """)
     df = pd.DataFrame([
         (y, n, n / n, 'Total Questions') for y, n, na in zip(qpy['year'], qpy['cnt'], aqpy['cnt'])
     ] + [
@@ -472,6 +474,69 @@ def narrative():
         color='Type',
         tooltip=['Year', 'Count', 'Type', 'Percentage']
     ).properties(title='Question Count', width=MAX_WIDTH))
+
+    st.markdown('Another problem with SO is that **_62%_** of users are **_never_** engaged in questioning or answering.')
+    st.markdown(""" we divide users into four types: <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;1. questioner: who asked at least one question; <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;2. answerer: who answered at least one question; <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;3. question&answerer: who is both a questioner and a answerer; <br>
+        &nbsp;&nbsp;&nbsp;&nbsp;4. do-nothinger: who never asked or answered any question. <br>
+        """, unsafe_allow_html=True)
+
+    questioner = get_query('''
+                        select count(distinct q.owner_user_id)
+                        from `bigquery-public-data.stackoverflow.posts_questions` q
+                        left join `bigquery-public-data.stackoverflow.posts_answers` a
+                        on q.owner_user_id = a.owner_user_id
+                        where a.owner_user_id is null
+                        ''').iat[0,0]
+
+    answerer = get_query('''
+                            select count(distinct a.owner_user_id)
+                            from `bigquery-public-data.stackoverflow.posts_answers` a
+                            left join `bigquery-public-data.stackoverflow.posts_questions` q
+                            on a.owner_user_id = q.owner_user_id
+                            where q.owner_user_id is null
+                            ''').iat[0,0]
+
+    question_and_answerer = get_query('''
+                            select count( distinct q.owner_user_id)
+                            from `bigquery-public-data.stackoverflow.posts_questions` q
+                            inner join `bigquery-public-data.stackoverflow.posts_answers` a 
+                            on q.owner_user_id = a.owner_user_id
+                            ''').iat[0,0]
+
+    do_nothinger = get_query('''
+                            select count(id)
+                            from `bigquery-public-data.stackoverflow.users` u
+                            left join (
+                                select distinct owner_user_id
+                                from `bigquery-public-data.stackoverflow.posts_answers`
+                                union all
+                                select distinct owner_user_id
+                                from `bigquery-public-data.stackoverflow.posts_questions`) b
+                            on u.id = b.owner_user_id
+                            where b.owner_user_id is null
+                            ''').iat[0,0]
+
+    num_user = get_query("select count(*) from `bigquery-public-data.stackoverflow.users` ").iat[0,0]
+
+    # Show result
+    user_type_df = pd.DataFrame({"Number of Users": [questioner, answerer, question_and_answerer, do_nothinger, num_user]})
+    user_type_df["Percentage(%)"] = round(user_type_df["Number of Users"] / num_user, 2)
+    user_type_df.index = ["Questioner", "Answerer", "Question&answerer", "Do-nothinger", "Total"]
+    user_type_df.reset_index(inplace=True)
+    user_type_df.rename(columns = {'index': 'User Type'}, inplace=True)
+
+    user_type_plot = alt.Chart(user_type_df).mark_bar().encode(
+            x = alt.X('Percentage(%)', axis=alt.Axis(format='.0%')),
+            y = alt.Y('User Type', sort = 'x'),
+            color = alt.Color('User Type', legend = None),
+            tooltip = ['Number of Users', alt.Tooltip('Percentage(%)', format='.0%')]
+        ).properties(width = MAX_WIDTH)
+    st.write(user_type_plot)
+
+
 
     st.header("How can we solve it?")
     st.subheader("Two Observations")
@@ -502,8 +567,8 @@ def narrative():
     ).resolve_scale(y='independent').properties(width=MAX_WIDTH))
 
     st.markdown(
-        '2. A user tends to answer questions with **_some particular tags_**.')
-    uid = int(st.text_input('Input user id', '1694'))
+        '2. A user prefers to answer questions only with **_some particular tags_**.')
+    uid = int(st.text_input('Input user id', '500584'))
     tags_one_user = get_query(f"""
         SELECT questions.tags
         FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
@@ -520,6 +585,7 @@ def narrative():
                 tag_cnt[tag] = 1
 
     tag_cnt = sorted(tag_cnt.items(), key=lambda item: item[1])
+    st.write(f"Among the total {sum(n for _, n in tag_cnt)} answers, **_{tag_cnt[-1][1]}_** are about '{tag_cnt[-1][0]}'!")
     x, y = [], []
     for idx in range(len(tag_cnt)):
         x.append(idx // 26)
