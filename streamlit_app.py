@@ -593,7 +593,7 @@ def multi_user():
     This would allow you to be able to follow the questions and answers that are posted by users that you want to watch/monitor.')
     st.write("Stack Overflow currently doesn't have the social functionality inside their application. We think adding this feature will help users better find their similar users and make connections with each other, and the increasing user-user interaction will result in the higher answer rate.")
     st.markdown("We recommend users that you might be interested in based on your history and you can add them as friends.")
-    st.markdown("You can click `Launch App!` to view all activities of your friends. ")
+    # st.markdown("You can click `Launch App!` to view all activities of your friends. ")
     col1, col2, col3 = st.beta_columns([1, 1,1])
     with col1:
         base = int(st.text_input('Input your user ID', '3122'))
@@ -609,7 +609,6 @@ def multi_user():
         placeholder = st.beta_expander("Your friends")
         my_expander = st.beta_expander("Recommended users")
         with my_expander:
-            # st.subheader('Recommended users')
             recommend.reset_followings(base, friend)
             user_num = st.number_input(
                 'Select the top k recommendations', 0, 20, 5)
@@ -645,7 +644,7 @@ def multi_user():
 
     with col2:
         user_data = get_user_timeline([base] + friend, d_s, d_e)
-        st.write(f'Here is the application to see your {len(friend)} friend{"s" if len(friend) > 1 else ""}\' timeline from {timestamp[0].strftime("%Y/%m/%d")} to {timestamp[1].strftime("%Y/%m/%d")}:')
+        st.write(f'Click `Launch App!` to see your {len(friend)} friend{"s" if len(friend) > 1 else ""}\' timelines from {d_s.strftime("%Y/%m/%d")} to {d_e.strftime("%Y/%m/%d")}:')
         get_multi_user_timeline(
             {i: user_data[i] for i in friend}, user_data[base]['users'])
 
