@@ -396,20 +396,22 @@ def get_answer_time_for_all_tags(tags):
 
 
 def show_estimated_times(tags):
-    if st.checkbox('Show estimated answer time and answer rate for each tag'):
-        df = get_answer_time_for_each_tag(tags)
-        st.write(alt.Chart(df).mark_circle().encode(
-            x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
-            y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
-            size=alt.Size('questions:Q', legend=None),
-            color=alt.Color('tag:N'),
-            tooltip=[
-                alt.Tooltip('tag'),
-                alt.Tooltip('avg_minutes'),
-                alt.Tooltip('chance_of_answer'),
-                alt.Tooltip('questions'),
-            ],
-        ).properties(title=f'Estimated answer time and answer rate for each tag'))
+    df = get_answer_time_for_each_tag(tags)
+    st.write(alt.Chart(df).mark_circle().encode(
+        x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
+        y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
+        size=alt.Size('questions:Q', legend=None),
+        color=alt.Color('tag:N'),
+        tooltip=[
+            alt.Tooltip('tag'),
+            alt.Tooltip('avg_minutes'),
+            alt.Tooltip('chance_of_answer'),
+            alt.Tooltip('questions'),
+        ],
+    ).properties(
+        title=f'Estimated answer time and answer rate for each tag',
+        width=MAX_WIDTH,
+    ))
 
     res = get_answer_time_for_all_tags(tags)
     if res['avg_minutes'] != np.nan:
@@ -508,13 +510,12 @@ def narrative():
     tag_cnt = pd.DataFrame.from_records(tag_cnt, columns=['tag', 'count'])
     tag_cnt['x'] = x
     tag_cnt['y'] = y
-    tag_cnt_plot = alt.Chart(tag_cnt).mark_circle(size=200).encode(
+    st.write(alt.Chart(tag_cnt).mark_circle(size=200).encode(
         x=alt.X('x', axis=alt.Axis(labels=False, title=f'Answer Counts For Tags For User {uid}')),
         y=alt.Y('y', axis=alt.Axis(labels=False, title="")),
         size='count',
         tooltip=['tag', 'count']
-    ).properties(width=MAX_WIDTH, height=350)
-    tag_cnt_plot
+    ).properties(width=MAX_WIDTH, height=350))
 
     st.markdown("""
         In order to **_increase answer rate_** and **_reduce answer time_**, the helper recommends 
@@ -551,14 +552,16 @@ def tag_user_recommendation():
 
 
 def single_user():
-    st.markdown("# Personal Profile Page")
+    st.header("Personal Profile Page")
+    st.write("The original stack overflow's user page lacks of the detailed behavior of given user, here we present additional visualization results combining with their existing functionality.")
     uid = int(st.text_input('Input user id', '16241'))
     user_data = get_user_timeline([uid])
     get_single_user_timeline(user_data[uid])
+    st.write("You can ")
 
 
 def multi_user():
-    st.markdown("# Social Overflow")
+    st.header("Social Overflow")
     col1, col2 = st.beta_columns([1, 3])
     with col1:
         base = int(st.text_input('Input base user id', '3122'))
