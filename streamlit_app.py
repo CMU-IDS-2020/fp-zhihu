@@ -469,7 +469,8 @@ def narrative():
         tooltip=['Year', 'Count', 'Type', 'Percentage']
     ).properties(title='Question Count', width=MAX_WIDTH))
 
-    st.header("Two Observations")
+    st.header("How can we solve it?")
+    st.subheader("Two Observations")
     st.markdown(
         '1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
 
@@ -530,10 +531,19 @@ def narrative():
     ).properties(width=MAX_WIDTH, height=350)
     tag_cnt_plot
 
+    # st.markdown("""
+    #     In order to **_increase answer rate_** and **_reduce answer time_**, our helper **_recommends 
+    #     users to answer particular questions_** based on the **_tags_**. 
+    # """)
+    st.header("Our Solution: ")
     st.markdown("""
-        In order to **_increase answer rate_** and **_reduce answer time_**, the helper recommends 
-        users to answer particular questions based on the **_tags_**. 
+        In order to **_increase answer rate_** and **_reduce answer time_**, our helper: \n
+        ✅ Recommend users to answer particular questions based on the **_tags_**. \n
+        ✅ Recommend users for particular users based on their past experiences. 
     """)
+    
+    st.markdown('---')
+    st.text("Please use the navigation selector on the sidebar to explore our application!")
 
 
 def tag_user_recommendation():
