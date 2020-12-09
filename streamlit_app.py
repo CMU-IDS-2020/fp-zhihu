@@ -12,8 +12,6 @@ import os
 import pandas as pd
 import streamlit as st
 import time
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def serialization(id):
@@ -430,35 +428,36 @@ def narrative():
     ''')
     st.markdown('---')
 
-    st.markdown('The biggest **_problem_** SO users face is that **_60%_** of questions are not answered!')
-    question_cnt_per_year = get_query("""
-        SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions
+    qpy = get_query("""
+        SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
         FROM `bigquery-public-data.stackoverflow.posts_questions`
         GROUP BY year
         ORDER BY year
     """)
-    answered_question_cnt_per_year = get_query("""
-        SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions_with_answers
+    aqpy = get_query("""
+        SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
         FROM `bigquery-public-data.stackoverflow.posts_questions`
         WHERE answer_count > 0
         GROUP BY year
         ORDER BY year
     """)
-    fig, ax1 = plt.subplots(figsize=(20, 8))
-    sns.set_color_codes("pastel")
-    sns.barplot(
-        x="year", y="number_of_questions", data=question_cnt_per_year,
-        label="Total Questions", color="b", ax=ax1)
-    sns.set_color_codes("muted")
-    sns.barplot(
-        x="year", y="number_of_questions_with_answers", data=answered_question_cnt_per_year,
-        label="Questions have answers", color="b", ax=ax1)
-    ax1.legend(ncol=2, frameon=True)
-    ax1.set(ylabel="Question Count", xlabel="Year")
-    st.pyplot(fig)
+    result = 1 - aqpy['cnt'].sum() / qpy['cnt'].sum()
+    st.markdown(f'The biggest **_problem_** SO users face is that **_{result * 100:.2f}%_** of questions are not answered, and the trend is still going up!')
+    df = pd.DataFrame([
+        (y, n, n / n, 'Total Questions') for y, n, na in zip(qpy['year'], qpy['cnt'], aqpy['cnt'])
+    ] + [
+        (y, na, na / n, 'Questions have answers') for y, n, na in zip(aqpy['year'], qpy['cnt'], aqpy['cnt'])
+    ], columns=['Year', 'Count', 'Percentage', 'Type'])
+    st.write(alt.Chart(df).mark_bar().encode(
+        x=alt.X('Year:N'),
+        y=alt.Y('max(Count)', stack=None),
+        color='Type',
+        tooltip=['Year', 'Count', 'Type', 'Percentage']
+    ).properties(title='Question Count', width=MAX_WIDTH))
 
     st.header("Two Observations")
-    st.markdown('1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
+    st.markdown(
+        '1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
 
     all_tags = get_query("""
         SELECT tag_name
@@ -470,27 +469,27 @@ def narrative():
 
     answer_time = get_answer_time_for_each_tag(all_tags)
 
-    fig, ax1 = plt.subplots(figsize=(20, 8))
-    ax2 = ax1.twinx()
-    sns.barplot(x="tag", y="avg_minutes", data=answer_time,
-                label="avg minutes to answer", color="b", ax=ax1)
-    sns.lineplot(x="tag", y="chance_of_answer", data=answer_time,
-                 label="chance of answer", color="r", ax=ax2)
-    ax1.legend(ncol=2, frameon=True)
-    ax1.tick_params(axis='y', colors="b")
-    ax1.yaxis.label.set_color("b")
-    ax2.tick_params(axis='y', colors="r")
-    ax2.yaxis.label.set_color("r")
-    ax1.set(ylabel="avg minutes to answer", xlabel="tag")
-    ax2.set(ylabel="chance of answer", xlabel="tag")
-    st.pyplot(fig)
+    base = alt.Chart(answer_time).encode(
+        x=alt.X('tag', sort=None, title='Tag'))
+    left = base.mark_bar().encode(
+        y=alt.Y('avg_minutes', title='Avg minutes to answer'),
+    )
+    right = base.mark_line(color='red').encode(
+        y=alt.Y('chance_of_answer', title='Chance of answer',
+                scale=alt.Scale(zero=False)),
+    )
+    st.write(alt.layer(left, right).encode(
+        tooltip=['tag', 'avg_minutes', 'chance_of_answer']
+    ).resolve_scale(y='independent').properties(width=MAX_WIDTH))
 
-    st.markdown('2. A user tends to answer questions with **_some particular tags_**.')
-    tags_one_user = get_query("""
+    st.markdown(
+        '2. A user tends to answer questions with **_some particular tags_**.')
+    uid = int(st.text_input('Input user id', '1694'))
+    tags_one_user = get_query(f"""
         SELECT questions.tags
         FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
         `bigquery-public-data.stackoverflow.posts_questions` questions ON answers.parent_id = questions.id
-        WHERE answers.owner_user_id = 1694
+        WHERE answers.owner_user_id = {uid}
         -- GROUP BY tags.tag_name
     """)['tags'].tolist()
     tag_cnt = dict()
@@ -510,11 +509,11 @@ def narrative():
     tag_cnt['x'] = x
     tag_cnt['y'] = y
     tag_cnt_plot = alt.Chart(tag_cnt).mark_circle(size=200).encode(
-        x=alt.X('x', axis=alt.Axis(labels=False, title='Answer Counts For Tags For User 1694')),
-        y=alt.Y('y', axis=alt.Axis(labels=False)),
+        x=alt.X('x', axis=alt.Axis(labels=False, title=f'Answer Counts For Tags For User {uid}')),
+        y=alt.Y('y', axis=alt.Axis(labels=False, title="")),
         size='count',
         tooltip=['tag', 'count']
-    ).properties(width=700, height=350)
+    ).properties(width=MAX_WIDTH, height=350)
     tag_cnt_plot
 
     st.markdown("""
