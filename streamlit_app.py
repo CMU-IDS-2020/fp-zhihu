@@ -615,9 +615,8 @@ def multi_user():
         friend = list(map(int, st.text_input(
             'Add friends by IDs, seperated by ","', "2686, 2795, 4855").split(',')))
         placeholder = st.beta_expander("Your current friends")
-        st.write('----')
-        st.write("<b style='font-size:20px;'>Recommended Users</b>",
-                 unsafe_allow_html=True)
+        st.write(' ')
+        st.write("<b style='font-size:20px;'>Recommended Users</b>", unsafe_allow_html=True)
         # with my_expander:
         recommend.reset_followings(base, friend)
         user_num = st.number_input(
