@@ -553,6 +553,7 @@ def narrative():
 
 def tag_user_recommendation():
     st.header('Recommendations based on question tags')
+    st.write('This feature helps find potential users who can answer the questions. The questioner may look into their past answers to learn while the platform could recommend the question for these people to answer.')
     question = st.text_input('Input question (Optional)',
                              "How to convert pandas dataframe to numpy array?")
     tags = [t.strip() for t in st.text_input(
@@ -560,9 +561,9 @@ def tag_user_recommendation():
     show_estimated_times(tags)
     tag_id = recommend.get_tag_id_by_name(tags)
 
-    st.header('Recommended users for your question')
+    st.header('Recommended users for this question')
     user_num = st.number_input(
-        'Select the top k users recommended for you', 0, 20, 5)
+            'Select the top k users recommended', 0, 20, 5)
     user_id = recommend.get_recommendation_by_tag_id(tag_id, k=user_num)
     user_df = get_user_info(user_id.tolist())
     if st.checkbox('Show raw data for recommended users'):
