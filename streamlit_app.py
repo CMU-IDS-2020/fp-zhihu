@@ -306,7 +306,8 @@ def get_multi_user_timeline(data: dict, baseuser) -> None:
       <div class="mx-5 py-5">
       <div class="card border-light">
         <div class="card-body">
-          <h3 class="card-text">Social Overflow (friends of BASEUSER)</h3>
+          <h4 class="card-text">Social Overflow</h4>
+          <small class="text-muted"></small>
         </div>
       </div>
       <div class="container py-1"></div>
