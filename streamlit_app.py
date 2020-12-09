@@ -430,7 +430,8 @@ def narrative():
     ''')
     st.markdown('---')
 
-    st.markdown('The biggest **_problem_** SO users face is that **_60%_** of questions are not answered!')
+    st.header("(1) Low Answer Rate")
+    st.markdown('The biggest **_problem_** SO users face is that only **_60%_** of questions are answered! When a user asks a question or looks for an answer to a question, he/she might not be able to do it.')
     question_cnt_per_year = get_query("""
             SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions
             FROM `bigquery-public-data.stackoverflow.posts_questions`
@@ -444,6 +445,9 @@ def narrative():
                 GROUP BY year
                 ORDER BY year
                 """)
+
+    plt.rcParams.update({'font.size': 16})
+
     fig, ax1 = plt.subplots(figsize = (20, 8))
     sns.set_color_codes("pastel")
     sns.barplot(x = "year", y = "number_of_questions", data = question_cnt_per_year,
@@ -455,6 +459,7 @@ def narrative():
     ax1.set(ylabel="Question Count",
            xlabel="Year")
     st.pyplot(fig)
+
 
 
     st.header("Two Observations")
@@ -471,6 +476,7 @@ def narrative():
 
     answer_time = get_answer_time_for_each_tag(all_tags)
 
+
     fig, ax1 = plt.subplots(figsize = (20, 8))
     ax2 = ax1.twinx()
     sns.barplot(x = "tag", y = "avg_minutes", data = answer_time,
@@ -486,14 +492,18 @@ def narrative():
            xlabel="tag")
     ax2.set(ylabel="chance of answer",
            xlabel="tag")
+    plt.setp(ax1.get_xticklabels(), rotation = 20, horizontalalignment = 'right')
     st.pyplot(fig)
 
-    st.markdown('2. A user tends to answer questions with **_some particular tags_**.')
+    st.text("So, the answer rate and average answer time can be estimated based on the question tags.")
+
+
+    st.markdown('2. A user prefers to answer questions only with **_some particular tags_**.')
     tags_one_user = get_query("""
                     SELECT questions.tags
                     FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
                     `bigquery-public-data.stackoverflow.posts_questions` questions ON answers.parent_id = questions.id
-                    WHERE answers.owner_user_id = 1694
+                    WHERE answers.owner_user_id = 500584
                     -- GROUP BY tags.tag_name
                     """)['tags'].tolist()
     tag_cnt = dict()
@@ -504,7 +514,14 @@ def narrative():
             else:
                 tag_cnt[tag] = 1
 
-    tag_cnt = sorted(tag_cnt.items(), key=lambda item: item[1])
+    tag_cnt_sorted = sorted(tag_cnt.items(), key=lambda item: -item[1])
+    tag_cnt_sorted_df = pd.DataFrame.from_records(tag_cnt_sorted, columns = ['tag', 'count'])
+    show_raw_data = st.checkbox("Show answer counts for tags")
+    if show_raw_data:
+        st.write(tag_cnt_sorted_df)
+
+    st.write(f"Among the total {sum(n for _, n in tag_cnt_sorted)} answers, **_{tag_cnt_sorted[0][1]}_** are about '{tag_cnt_sorted[0][0]}'!")
+    tag_cnt = [[k, v] for (k,v) in tag_cnt.items()]
     x = list()
     y = list()
     for idx in range(len(tag_cnt)):
@@ -513,21 +530,86 @@ def narrative():
     tag_cnt = pd.DataFrame.from_records(tag_cnt, columns = ['tag', 'count'])
     tag_cnt['x'] = x
     tag_cnt['y'] = y
+
     tag_cnt_plot = alt.Chart(tag_cnt).mark_circle(size = 200).encode(
-            x = alt.X('x', axis = alt.Axis(labels = False, title = 'Answer Counts For Tags For User 1694')), 
-            y = alt.X('y', axis = alt.Axis(labels = False)),
+            x = alt.X('x', axis = alt.Axis(labels = False, title = 'Answer Counts For Tags For User 500584')), 
+            y = alt.Y('y', axis = alt.Axis(labels = False, title = '')),
             size = 'count', 
             tooltip = ['tag', 'count']
         ).properties(
             width = 700,
             height = 350
+        ).configure_axis(
+            labelFontSize = 12,
+            titleFontSize = 12
         )
     tag_cnt_plot
 
+
     st.markdown(""" 
             In order to **_increase answer rate_** and **_reduce answer time_**, the helper recommends 
-            users to answer particular questions based on the **_tags_**. 
+            users to answer particular questions based on the question **_tags_**. 
         """)
+
+    st.header("(2) Low Engagement")
+    st.markdown('Another problem with SO is that only **_35%_** of users are engaged in questioning or answering.')
+
+    st.markdown(""" we divide users into four types: <br>
+        1. questioner: who asked at least one question; <br>
+        2. answerer: who answered at least one question; <br>
+        3. question&answerer: who is both a questioner and a answerer; <br>
+        4. do-nothinger: who never asked or answered any question. <br>
+        """, unsafe_allow_html=True)
+
+    questioner = get_query('''
+                        select count(distinct q.owner_user_id)
+                        from `bigquery-public-data.stackoverflow.posts_questions` q
+                        left join `bigquery-public-data.stackoverflow.posts_answers` a
+                        on q.owner_user_id = a.owner_user_id
+                        where a.owner_user_id is null
+                        ''').iat[0,0]
+
+    answerer = get_query('''
+                            select count(distinct a.owner_user_id)
+                            from `bigquery-public-data.stackoverflow.posts_answers` a
+                            left join `bigquery-public-data.stackoverflow.posts_questions` q
+                            on a.owner_user_id = q.owner_user_id
+                            where q.owner_user_id is null
+                            ''').iat[0,0]
+
+    question_and_answerer = get_query('''
+                            select count( distinct q.owner_user_id)
+                            from `bigquery-public-data.stackoverflow.posts_questions` q
+                            inner join `bigquery-public-data.stackoverflow.posts_answers` a 
+                            on q.owner_user_id = a.owner_user_id
+                            ''').iat[0,0]
+
+    do_nothinger = get_query('''
+                            select count(id)
+                            from `bigquery-public-data.stackoverflow.users` u
+                            left join (
+                                select distinct owner_user_id
+                                from `bigquery-public-data.stackoverflow.posts_answers`
+                                union all
+                                select distinct owner_user_id
+                                from `bigquery-public-data.stackoverflow.posts_questions`) b
+                            on u.id = b.owner_user_id
+                            where b.owner_user_id is null
+                            ''').iat[0,0]
+
+    num_user = get_query("select count(*) from `bigquery-public-data.stackoverflow.users` ").iat[0,0]
+
+    # Show result
+    user_type_df = pd.DataFrame({"Number of Users": [questioner, answerer, question_and_answerer, do_nothinger, num_user]})
+    user_type_df["Percentage(%)"] = round(user_type_df["Number of Users"] / num_user * 100, 2)
+    user_type_df.index = ["Questioner", "Answerer", "Question&answerer", "Do-nothinger", "Total"]
+    user_type_df.reset_index(inplace=True)
+    user_type_df.rename(columns = {'index': 'User Type'}, inplace=True)
+
+    fig, ax = plt.subplots(figsize=(20, 8))
+    sns.set(font_scale = 2)
+    plot = sns.barplot(x = 'Number of Users', y = 'User Type', data = user_type_df)
+    st.pyplot(fig)
 
 
 def tag_user_recommendation():
