@@ -589,43 +589,67 @@ def single_user():
 
 def multi_user():
     st.header("Social Overflow")
+    st.markdown('The feature aims to build a "Social Network" on Stack Overflow. \n \
+    This would allow you to be able to follow the questions and answers that are posted by users that you want to watch/monitor.')
     st.write("Stack Overflow currently doesn't have the social functionality inside their application. We think adding this feature will help users better find their similar users and make connections with each other, and the increasing user-user interaction will result in the higher answer rate.")
-    col1, col2 = st.beta_columns([1, 3])
+    st.markdown("We recommend users that you might be interested in based on your history and you can add them as friends.")
+    st.markdown("You can click `Launch App!` to view all activities of your friends. ")
+    col1, col2, col3 = st.beta_columns([1, 1,1])
     with col1:
-        base = int(st.text_input('Input base user id', '3122'))
+        base = int(st.text_input('Input your user ID', '3122'))
     with col2:
-        friend = list(map(int, st.text_input(
-            'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
+        d_s = st.date_input( "Start Day", datetime(2019, 9, 10), min_value = datetime(2008, 8, 1), max_value = datetime(2020, 9, 10))
+    with col3:
+        d_e = st.date_input( "End Day", datetime(2020, 9, 10), min_value = datetime(2008, 8, 1), max_value = datetime(2020, 9, 10))
 
-    st.header('Recommended users for following')
-    recommend.reset_followings(base, friend)
-    user_num = st.slider(
-        'Select the top k users recommended for you:', 0, 20, 5)
-    user_id = recommend.recommend_users_by_history(base, k=user_num)
-    user_df = get_user_info(user_id.tolist())
-    if st.checkbox('Show raw data for recommended users'):
-        st.write(user_df)
-    user_detail = st.checkbox('Show details for each user')
-    for i, uid in enumerate(user_id):
-        row = user_df.loc[user_df['id'] == uid]
-        username = row['display_name'].values[0]
-        intro = row['about_me'].values[0]
-        st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid}), (user id {uid})')
-        if intro and user_detail:
-            st.write(intro, unsafe_allow_html=True)
-        elif user_detail:
-            st.write('No introduction provided')
+    col1, col2 = st.beta_columns([1, 2])
+    with col1:
+        friend = list(map(int, st.text_input(
+                'Add friends by IDs, seperated by ","', "2686, 2795, 4855").split(',')))
+        placeholder = st.beta_expander("Your friends")
+        my_expander = st.beta_expander("Recommended users")
+        with my_expander:
+            # st.subheader('Recommended users')
+            recommend.reset_followings(base, friend)
+            user_num = st.number_input(
+                'Select the top k recommendations', 0, 20, 5)
+            user_id = recommend.recommend_users_by_history(base, k=user_num)
+            user_df = get_user_info(user_id.tolist())
+            # if st.checkbox('Show raw data for recommended users'):
+            #     st.write(user_df)
+            # user_detail = st.checkbox('Show details for each user')
+            for i, uid in enumerate(user_id):
+                row = user_df.loc[user_df['id'] == uid]
+                username = row['display_name'].values[0]
+                intro = row['about_me'].values[0]
+                st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
+                user_detail = st.checkbox('Show details', key=i)
+                add_friends = st.checkbox('Add to friends', key=i)
+                if intro and user_detail:
+                    st.write(intro, unsafe_allow_html=True)
+                elif user_detail:
+                    st.write('No introduction provided')
+                if add_friends and uid not in friend:
+                    friend.append(uid)
+        with placeholder:
+            friend_df = get_user_info(friend)
+            # if st.checkbox('Show raw data for recommended users'):
+            #     st.write(user_df)
+            # user_detail = st.checkbox('Show details for each user')
+            for i, uid in enumerate(friend):
+                row = friend_df.loc[friend_df['id'] == uid]
+                username = row['display_name'].values[0]
+                intro = row['about_me'].values[0]
+                placeholder.write(f'<p style="text-align: left; display: inline-block;"><a href="https://stackoverflow.com/users/{uid}">{username}</a> </p> <span style="float:right;"><font color="grey">#{uid}</font> </span>', unsafe_allow_html=True)
+
+
+    with col2:
+        user_data = get_user_timeline([base] + friend, d_s, d_e)
+        st.write(f'Here is the application to see your {len(friend)} friend{"s" if len(friend) > 1 else ""}\' timeline from {timestamp[0].strftime("%Y/%m/%d")} to {timestamp[1].strftime("%Y/%m/%d")}:')
+        get_multi_user_timeline(
+            {i: user_data[i] for i in friend}, user_data[base]['users'])
 
     st.markdown('---')
-    timestamp = st.slider(
-        'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
-        value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
-        format="MM/DD/YY")
-    user_data = get_user_timeline([base] + friend, *timestamp)
-    st.write(f'Here is the application to see your {len(friend)} friend{"s" if len(friend) > 1 else ""}\' timeline from {timestamp[0].strftime("%Y/%m/%d")} to {timestamp[1].strftime("%Y/%m/%d")}:')
-
-    get_multi_user_timeline(
-        {i: user_data[i] for i in friend}, user_data[base]['users'])
 
 
 def user_user_recommendation():
