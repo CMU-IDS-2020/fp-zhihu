@@ -420,6 +420,16 @@ def show_estimated_times(tags):
     else:
         st.write(f"Sorry, no estimation because you are the first one to ask these types of question. ")
 
+def SO_current_situation():
+
+    st.write("<span style='font-size:30px;'>Stack Overflow</span> is the largest online community for programmers to learn, share their knowledge, and advance their careers.", unsafe_allow_html=True)
+    st.write("Currently, it has over 10,000,000 registered users in the community who can: ")
+    st.write("""
+            ✅ Ask and Answer Questions \n
+            ✅ Vote Questions and Answers Up or Down  \n
+            ✅ Edit Other People's Posts \n
+            ❓ What's more.... 
+            """)
 
 def narrative():
     st.write('# Stack Overflow Helper')
@@ -429,6 +439,10 @@ def narrative():
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
     ''')
     st.markdown('---')
+ 
+    SO_current_situation()
+
+    st.write('## What\'s the problem right now?')
 
     qpy = get_query("""
         SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
@@ -457,7 +471,8 @@ def narrative():
         tooltip=['Year', 'Count', 'Type', 'Percentage']
     ).properties(title='Question Count', width=MAX_WIDTH))
 
-    st.header("Two Observations")
+    st.header("How can we solve it?")
+    st.subheader("Two Observations")
     st.markdown(
         '1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
 
@@ -517,10 +532,19 @@ def narrative():
         tooltip=['tag', 'count']
     ).properties(width=MAX_WIDTH, height=350))
 
+    # st.markdown("""
+    #     In order to **_increase answer rate_** and **_reduce answer time_**, our helper **_recommends 
+    #     users to answer particular questions_** based on the **_tags_**. 
+    # """)
+    st.header("Our Solution: ")
     st.markdown("""
-        In order to **_increase answer rate_** and **_reduce answer time_**, the helper recommends 
-        users to answer particular questions based on the **_tags_**. 
+        In order to **_increase answer rate_** and **_reduce answer time_**, our helper: \n
+        ✅ Recommend users to answer particular questions based on the **_tags_**. \n
+        ✅ Recommend users for particular users based on their past experiences. 
     """)
+    
+    st.markdown('---')
+    st.text("Please use the navigation selector on the sidebar to explore our application!")
 
 
 def tag_user_recommendation():
