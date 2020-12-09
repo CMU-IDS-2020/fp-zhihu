@@ -12,8 +12,6 @@ import os
 import pandas as pd
 import streamlit as st
 import time
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def serialization(id):
@@ -308,7 +306,8 @@ def get_multi_user_timeline(data: dict, baseuser) -> None:
       <div class="mx-5 py-5">
       <div class="card border-light">
         <div class="card-body">
-          <h3 class="card-text">Social Overflow (friends of BASEUSER)</h3>
+          <h4 class="card-text">Social Overflow</h4>
+          <small class="text-muted">friends of BASEUSER</small>
         </div>
       </div>
       <div class="container py-1"></div>
@@ -398,20 +397,22 @@ def get_answer_time_for_all_tags(tags):
 
 
 def show_estimated_times(tags):
-    if st.checkbox('Show estimated answer time and answer rate for each tag'):
-        df = get_answer_time_for_each_tag(tags)
-        st.write(alt.Chart(df).mark_circle().encode(
-            x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
-            y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
-            size=alt.Size('questions:Q', legend=None),
-            color=alt.Color('tag:N'),
-            tooltip=[
-                alt.Tooltip('tag'),
-                alt.Tooltip('avg_minutes'),
-                alt.Tooltip('chance_of_answer'),
-                alt.Tooltip('questions'),
-            ],
-        ).properties(title=f'Estimated answer time and answer rate for each tag'))
+    df = get_answer_time_for_each_tag(tags)
+    st.write(alt.Chart(df).mark_circle().encode(
+        x=alt.X('avg_minutes:Q', axis=alt.Axis(title='Time (minutes)')),
+        y=alt.Y('chance_of_answer:Q', axis=alt.Axis(title='Probability')),
+        size=alt.Size('questions:Q', legend=None),
+        color=alt.Color('tag:N'),
+        tooltip=[
+            alt.Tooltip('tag'),
+            alt.Tooltip('avg_minutes'),
+            alt.Tooltip('chance_of_answer'),
+            alt.Tooltip('questions'),
+        ],
+    ).properties(
+        title=f'Estimated answer time and answer rate for each tag',
+        width=MAX_WIDTH,
+    ))
 
     res = get_answer_time_for_all_tags(tags)
     if res['avg_minutes'] != np.nan:
@@ -420,92 +421,96 @@ def show_estimated_times(tags):
     else:
         st.write(f"Sorry, no estimation because you are the first one to ask these types of question. ")
 
+def SO_current_situation():
+
+    st.write("<span style='font-size:30px;'>Stack Overflow</span> is the largest online community for programmers to learn, share their knowledge, and advance their careers.", unsafe_allow_html=True)
+    st.write(
+        "Currently, it has over 10,000,000 registered users in the community who can: ")
+    st.write("""
+            ✅ Ask and Answer Questions \n
+            ✅ Vote Questions and Answers Up or Down  \n
+            ✅ Edit Other People's Posts \n
+            ❓ What's more.... 
+            """)
+
 
 def narrative():
     st.write('# Stack Overflow Helper')
     st.markdown('''
         > GitHub project page: https://github.com/CMU-IDS-2020/fp-zhihu
-
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
     ''')
     st.markdown('---')
 
-    st.header("(1) Low Answer Rate")
-    st.markdown('The biggest **_problem_** SO users face is that only **_60%_** of questions are answered! When a user asks a question or looks for an answer to a question, he/she might not be able to do it.')
-    question_cnt_per_year = get_query("""
-            SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions
-            FROM `bigquery-public-data.stackoverflow.posts_questions`
-            GROUP BY year
-            ORDER BY year
-            """)
-    answered_question_cnt_per_year = get_query("""
-                SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS number_of_questions_with_answers
-                FROM `bigquery-public-data.stackoverflow.posts_questions`
-                WHERE answer_count > 0
-                GROUP BY year
-                ORDER BY year
-                """)
+    SO_current_situation()
 
-    plt.rcParams.update({'font.size': 16})
+    st.write('## What\'s the problem right now?')
 
-    fig, ax1 = plt.subplots(figsize = (20, 8))
-    sns.set_color_codes("pastel")
-    sns.barplot(x = "year", y = "number_of_questions", data = question_cnt_per_year,
-                label = "Total Questions", color = "b", ax = ax1)
-    sns.set_color_codes("muted")
-    sns.barplot(x = "year", y = "number_of_questions_with_answers", data = answered_question_cnt_per_year,
-                label = "Questions have answers", color = "b", ax = ax1)
-    ax1.legend(ncol=2, frameon=True)
-    ax1.set(ylabel="Question Count",
-           xlabel="Year")
-    st.pyplot(fig)
+    qpy = get_query("""
+        SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
+        FROM `bigquery-public-data.stackoverflow.posts_questions`
+        GROUP BY year
+        ORDER BY year
+    """)
+    aqpy = get_query("""
+        SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
+        FROM `bigquery-public-data.stackoverflow.posts_questions`
+        WHERE answer_count > 0
+        GROUP BY year
+        ORDER BY year
+    """)
+    result = 1 - aqpy['cnt'].sum() / qpy['cnt'].sum()
+    st.markdown(f'The biggest **_problem_** Stack Overflow users face is that **_{result * 100:.2f}%_** of questions are not answered, and the trend is still going up!')
+    df = pd.DataFrame([
+        (y, n, n / n, 'Total Questions') for y, n, na in zip(qpy['year'], qpy['cnt'], aqpy['cnt'])
+    ] + [
+        (y, na, na / n, 'Questions have answers') for y, n, na in zip(aqpy['year'], qpy['cnt'], aqpy['cnt'])
+    ], columns=['Year', 'Count', 'Percentage', 'Type'])
+    st.write(alt.Chart(df).mark_bar().encode(
+        x=alt.X('Year:N'),
+        y=alt.Y('max(Count)', stack=None),
+        color='Type',
+        tooltip=['Year', 'Count', 'Type', 'Percentage']
+    ).properties(title='Question Count', width=MAX_WIDTH))
 
-
-
-    st.header("Two Observations")
-
-    st.markdown('1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
+    st.header("How can we solve it?")
+    st.subheader("Two Observations")
+    st.markdown(
+        '1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
 
     all_tags = get_query("""
-                SELECT tag_name
-                FROM `bigquery-public-data.stackoverflow.tags`
-                WHERE count >= 1000
-                ORDER BY RAND()
-                LIMIT 15
-            """)['tag_name'].tolist()
+        SELECT tag_name
+        FROM `bigquery-public-data.stackoverflow.tags`
+        WHERE count >= 1000
+        ORDER BY RAND()
+        LIMIT 15
+    """)['tag_name'].tolist()
 
     answer_time = get_answer_time_for_each_tag(all_tags)
 
+    base = alt.Chart(answer_time).encode(
+        x=alt.X('tag', sort=None, title='Tag'))
+    left = base.mark_bar().encode(
+        y=alt.Y('avg_minutes', title='Avg minutes to answer'),
+    )
+    right = base.mark_line(color='red').encode(
+        y=alt.Y('chance_of_answer', title='Chance of answer',
+                scale=alt.Scale(zero=False)),
+    )
+    st.write(alt.layer(left, right).encode(
+        tooltip=['tag', 'avg_minutes', 'chance_of_answer']
+    ).resolve_scale(y='independent').properties(width=MAX_WIDTH))
 
-    fig, ax1 = plt.subplots(figsize = (20, 8))
-    ax2 = ax1.twinx()
-    sns.barplot(x = "tag", y = "avg_minutes", data = answer_time,
-                label = "avg minutes to answer", color = "b", ax = ax1)
-    sns.lineplot(x = "tag", y = "chance_of_answer", data = answer_time,
-                label = "chance of answer", color = "r", ax = ax2)
-    ax1.legend(ncol=2, frameon=True)
-    ax1.tick_params(axis = 'y', colors = "b")
-    ax1.yaxis.label.set_color("b")
-    ax2.tick_params(axis = 'y', colors = "r")
-    ax2.yaxis.label.set_color("r")
-    ax1.set(ylabel="avg minutes to answer",
-           xlabel="tag")
-    ax2.set(ylabel="chance of answer",
-           xlabel="tag")
-    plt.setp(ax1.get_xticklabels(), rotation = 20, horizontalalignment = 'right')
-    st.pyplot(fig)
-
-    st.text("So, the answer rate and average answer time can be estimated based on the question tags.")
-
-
-    st.markdown('2. A user prefers to answer questions only with **_some particular tags_**.')
-    tags_one_user = get_query("""
-                    SELECT questions.tags
-                    FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
-                    `bigquery-public-data.stackoverflow.posts_questions` questions ON answers.parent_id = questions.id
-                    WHERE answers.owner_user_id = 500584
-                    -- GROUP BY tags.tag_name
-                    """)['tags'].tolist()
+    st.markdown(
+        '2. A user tends to answer questions with **_some particular tags_**.')
+    uid = int(st.text_input('Input user id', '1694'))
+    tags_one_user = get_query(f"""
+        SELECT questions.tags
+        FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
+        `bigquery-public-data.stackoverflow.posts_questions` questions ON answers.parent_id = questions.id
+        WHERE answers.owner_user_id = {uid}
+        -- GROUP BY tags.tag_name
+    """)['tags'].tolist()
     tag_cnt = dict()
     for tags in tags_one_user:
         for tag in tags.split('|'):
@@ -514,106 +519,40 @@ def narrative():
             else:
                 tag_cnt[tag] = 1
 
-    tag_cnt_sorted = sorted(tag_cnt.items(), key=lambda item: -item[1])
-    tag_cnt_sorted_df = pd.DataFrame.from_records(tag_cnt_sorted, columns = ['tag', 'count'])
-    show_raw_data = st.checkbox("Show answer counts for tags")
-    if show_raw_data:
-        st.write(tag_cnt_sorted_df)
-
-    st.write(f"Among the total {sum(n for _, n in tag_cnt_sorted)} answers, **_{tag_cnt_sorted[0][1]}_** are about '{tag_cnt_sorted[0][0]}'!")
-    tag_cnt = [[k, v] for (k,v) in tag_cnt.items()]
-    x = list()
-    y = list()
+    tag_cnt = sorted(tag_cnt.items(), key=lambda item: item[1])
+    x, y = [], []
     for idx in range(len(tag_cnt)):
         x.append(idx // 26)
         y.append(idx % 26)
-    tag_cnt = pd.DataFrame.from_records(tag_cnt, columns = ['tag', 'count'])
+    tag_cnt = pd.DataFrame.from_records(tag_cnt, columns=['tag', 'count'])
     tag_cnt['x'] = x
     tag_cnt['y'] = y
+    st.write(alt.Chart(tag_cnt).mark_circle(size=200).encode(
+        x=alt.X('x', axis=alt.Axis(labels=False, title=f'Answer Counts For Tags For User {uid}')),
+        y=alt.Y('y', axis=alt.Axis(labels=False, title="")),
+        size='count',
+        tooltip=['tag', 'count']
+    ).properties(width=MAX_WIDTH, height=350))
 
-    tag_cnt_plot = alt.Chart(tag_cnt).mark_circle(size = 200).encode(
-            x = alt.X('x', axis = alt.Axis(labels = False, title = 'Answer Counts For Tags For User 500584')), 
-            y = alt.Y('y', axis = alt.Axis(labels = False, title = '')),
-            size = 'count', 
-            tooltip = ['tag', 'count']
-        ).properties(
-            width = 700,
-            height = 350
-        ).configure_axis(
-            labelFontSize = 12,
-            titleFontSize = 12
-        )
-    tag_cnt_plot
+    # st.markdown("""
+    #     In order to **_increase answer rate_** and **_reduce answer time_**, our helper **_recommends
+    #     users to answer particular questions_** based on the **_tags_**.
+    # """)
+    st.header("Our Solution: ")
+    st.markdown("""
+        In order to **_increase answer rate_** and **_reduce answer time_**, our helper: \n
+        ✅ Recommend users to answer particular questions based on the tags. \n
+        ✅ Recommend users for particular users based on their past experiences. 
+    """)
 
-
-    st.markdown(""" 
-            In order to **_increase answer rate_** and **_reduce answer time_**, the helper recommends 
-            users to answer particular questions based on the question **_tags_**. 
-        """)
-
-    st.header("(2) Low Engagement")
-    st.markdown('Another problem with SO is that only **_35%_** of users are engaged in questioning or answering.')
-
-    st.markdown(""" we divide users into four types: <br>
-        1. questioner: who asked at least one question; <br>
-        2. answerer: who answered at least one question; <br>
-        3. question&answerer: who is both a questioner and a answerer; <br>
-        4. do-nothinger: who never asked or answered any question. <br>
-        """, unsafe_allow_html=True)
-
-    questioner = get_query('''
-                        select count(distinct q.owner_user_id)
-                        from `bigquery-public-data.stackoverflow.posts_questions` q
-                        left join `bigquery-public-data.stackoverflow.posts_answers` a
-                        on q.owner_user_id = a.owner_user_id
-                        where a.owner_user_id is null
-                        ''').iat[0,0]
-
-    answerer = get_query('''
-                            select count(distinct a.owner_user_id)
-                            from `bigquery-public-data.stackoverflow.posts_answers` a
-                            left join `bigquery-public-data.stackoverflow.posts_questions` q
-                            on a.owner_user_id = q.owner_user_id
-                            where q.owner_user_id is null
-                            ''').iat[0,0]
-
-    question_and_answerer = get_query('''
-                            select count( distinct q.owner_user_id)
-                            from `bigquery-public-data.stackoverflow.posts_questions` q
-                            inner join `bigquery-public-data.stackoverflow.posts_answers` a 
-                            on q.owner_user_id = a.owner_user_id
-                            ''').iat[0,0]
-
-    do_nothinger = get_query('''
-                            select count(id)
-                            from `bigquery-public-data.stackoverflow.users` u
-                            left join (
-                                select distinct owner_user_id
-                                from `bigquery-public-data.stackoverflow.posts_answers`
-                                union all
-                                select distinct owner_user_id
-                                from `bigquery-public-data.stackoverflow.posts_questions`) b
-                            on u.id = b.owner_user_id
-                            where b.owner_user_id is null
-                            ''').iat[0,0]
-
-    num_user = get_query("select count(*) from `bigquery-public-data.stackoverflow.users` ").iat[0,0]
-
-    # Show result
-    user_type_df = pd.DataFrame({"Number of Users": [questioner, answerer, question_and_answerer, do_nothinger, num_user]})
-    user_type_df["Percentage(%)"] = round(user_type_df["Number of Users"] / num_user * 100, 2)
-    user_type_df.index = ["Questioner", "Answerer", "Question&answerer", "Do-nothinger", "Total"]
-    user_type_df.reset_index(inplace=True)
-    user_type_df.rename(columns = {'index': 'User Type'}, inplace=True)
-
-    fig, ax = plt.subplots(figsize=(20, 8))
-    sns.set(font_scale = 2)
-    plot = sns.barplot(x = 'Number of Users', y = 'User Type', data = user_type_df)
-    st.pyplot(fig)
+    st.markdown('---')
+    st.text(
+        "Please use the navigation selector on the sidebar to explore our application!")
 
 
 def tag_user_recommendation():
     st.header('Recommendations based on question tags')
+    st.write('This feature helps find potential users who can answer the questions. The questioner may look into their past answers to learn while the platform could recommend the question for these people to answer.')
     question = st.text_input('Input question (Optional)',
                              "How to convert pandas dataframe to numpy array?")
     tags = [t.strip() for t in st.text_input(
@@ -621,69 +560,106 @@ def tag_user_recommendation():
     show_estimated_times(tags)
     tag_id = recommend.get_tag_id_by_name(tags)
 
-    st.header('Recommended users for your question')
-    user_num = st.slider(
-        'Select the top k users recommended for you:', 0, 20, 5)
+    st.header('Recommended users for this question')
+    user_num = st.number_input(
+            'Select the top k users recommended', 0, 20, 5)
     user_id = recommend.get_recommendation_by_tag_id(tag_id, k=user_num)
     user_df = get_user_info(user_id.tolist())
     if st.checkbox('Show raw data for recommended users'):
         st.write(user_df)
-    user_detail = st.checkbox('Show details for each user')
+    # user_detail = st.checkbox('Show details for each user')
     for i, uid in enumerate(user_id):
         row = user_df.loc[user_df['id'] == uid]
         username = row['display_name'].values[0]
         intro = row['about_me'].values[0]
-        st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
-        if intro and user_detail:
-            st.write(intro, unsafe_allow_html=True)
-        elif user_detail:
-            st.write('No introduction provided')
+        # st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
+        my_expander = st.beta_expander(f'Top {i+1}: {username}')
+        with my_expander:
+            if intro:
+                st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
+                st.write(intro, unsafe_allow_html=True)
+            else:
+                st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
+                st.write('No introduction provided')
 
 
 def single_user():
-    st.markdown("# Personal Profile Page")
-    uid = int(st.text_input('Input user id', '16241'))
+    st.header("Personal Profile Page")
+    st.write("The original Stack Overflow's user page lacks the detailed behavior of given user, hence we present additional visualization results together with their existing functionality.")
+    uid = int(st.text_input('Input user ID', '16241'))
     user_data = get_user_timeline([uid])
     get_single_user_timeline(user_data[uid])
+    st.write("Click on another page at left to see the user recommendation result!")
 
 
 def multi_user():
-    st.markdown("# Social Overflow")
-    col1, col2 = st.beta_columns([1, 3])
+    st.header("Social Overflow")
+    st.markdown('The feature aims to build a "Social Network" on Stack Overflow. \n \
+    This would allow you to be able to follow the questions and answers that are posted by users that you want to watch/monitor.')
+    st.write("Stack Overflow currently doesn't have the social functionality inside their application. We think adding this feature will help users better find their similar users and make connections with each other, and the increasing user-user interaction will result in the higher answer rate.")
+    st.markdown(
+        "We recommend users that you might be interested in based on your history and you can add them as friends.")
+    # st.markdown("You can click `Launch App!` to view all activities of your friends. ")
+    col1, col2, col3 = st.beta_columns([1, 1, 1])
     with col1:
-        base = int(st.text_input('Input base user id', '3122'))
+        base = int(st.text_input('Input your user ID', '3122'))
     with col2:
-        friend = list(map(int, st.text_input(
-            'Input friend users id, "," seperated', "2686, 2795, 4855").split(',')))
+        d_s = st.date_input("Start Day", datetime(2019, 9, 10), min_value=datetime(
+            2008, 8, 1), max_value=datetime(2020, 9, 10))
+    with col3:
+        d_e = st.date_input("End Day", datetime(2020, 9, 10), min_value=datetime(
+            2008, 8, 1), max_value=datetime(2020, 9, 10))
 
-    st.header('Recommended users for following')
-    recommend.reset_followings(base, friend)
-    user_num = st.slider(
-        'Select the top k users recommended for you:', 0, 20, 5)
-    user_id = recommend.recommend_users_by_history(base, k=user_num)
-    user_df = get_user_info(user_id.tolist())
-    if st.checkbox('Show raw data for recommended users'):
-        st.write(user_df)
-    user_detail = st.checkbox('Show details for each user')
-    for i, uid in enumerate(user_id):
-        row = user_df.loc[user_df['id'] == uid]
-        username = row['display_name'].values[0]
-        intro = row['about_me'].values[0]
-        st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid}), (user id {uid})')
-        if intro and user_detail:
-            st.write(intro, unsafe_allow_html=True)
-        elif user_detail:
-            st.write('No introduction provided')
+    col1, col2 = st.beta_columns([1, 2])
+    with col1:
+        friend = list(map(int, st.text_input(
+            'Add friends by IDs, seperated by ","', "2686, 2795, 4855").split(',')))
+        placeholder = st.beta_expander("Your current friends")
+        st.write(' ')
+        st.write("<b style='font-size:20px;'>Recommended Users</b>", unsafe_allow_html=True)
+        # with my_expander:
+        recommend.reset_followings(base, friend)
+        user_num = st.number_input(
+            'Select the top k recommendations', 0, 20, 5)
+        user_id = recommend.recommend_users_by_history(base, k=user_num)
+        user_df = get_user_info(user_id.tolist())
+        # if st.checkbox('Show raw data for recommended users'):
+        #     st.write(user_df)
+        # user_detail = st.checkbox('Show details for each user')
+        for i, uid in enumerate(user_id):
+            row = user_df.loc[user_df['id'] == uid]
+            username = row['display_name'].values[0]
+            intro = row['about_me'].values[0]
+            # st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
+            user_expander = st.beta_expander(f"Top {i+1}: {username}")
+            with user_expander:
+                # user_detail = st.checkbox('Show details', key=i)
+                add_friends = st.checkbox('Add to friends', key=i)
+                if intro:
+                    st.write(intro, unsafe_allow_html=True)
+                else:
+                    st.write('No introduction provided')
+                if add_friends and uid not in friend:
+                    friend.append(uid)
+
+        with placeholder:
+            friend_df = get_user_info(friend)
+            # if st.checkbox('Show raw data for recommended users'):
+            #     st.write(user_df)
+            # user_detail = st.checkbox('Show details for each user')
+            for i, uid in enumerate(friend):
+                row = friend_df.loc[friend_df['id'] == uid]
+                username = row['display_name'].values[0]
+                intro = row['about_me'].values[0]
+                placeholder.write(f'<p style="text-align: left; display: inline-block;"><a href="https://stackoverflow.com/users/{uid}">{username}</a> </p> <span style="float:right;"><font color="grey">#{uid}</font> </span>', unsafe_allow_html=True)
+
+    with col2:
+        user_data = get_user_timeline([base] + friend, d_s, d_e)
+        st.write(f'Click `Launch App!` to see your {len(friend)} friend{"s" if len(friend) > 1 else ""}\' timelines from {d_s.strftime("%Y/%m/%d")} to {d_e.strftime("%Y/%m/%d")}:')
+        get_multi_user_timeline(
+            {i: user_data[i] for i in friend}, user_data[base]['users'])
 
     st.markdown('---')
-    timestamp = st.slider(
-        'Select date range', datetime(2008, 8, 1), datetime(2020, 9, 10),
-        value=(datetime(2019, 9, 10), datetime(2020, 9, 10)),
-        format="MM/DD/YY")
-    user_data = get_user_timeline([base] + friend, *timestamp)
-
-    get_multi_user_timeline(
-        {i: user_data[i] for i in friend}, user_data[base]['users'])
 
 
 def user_user_recommendation():
