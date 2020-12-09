@@ -418,6 +418,16 @@ def show_estimated_times(tags):
     else:
         st.write(f"Sorry, no estimation because you are the first one to ask these types of question. ")
 
+def SO_current_situation():
+
+    st.write("<span style='font-size:30px;'>Stack Overflow</span> is the largest online community for programmers to learn, share their knowledge, and advance their careers.", unsafe_allow_html=True)
+    st.write("Currently, it has over 10,000,000 registered users in the community who can: ")
+    st.write("""
+            ✅ Ask and Answer Questions \n
+            ✅ Vote Questions and Answers Up or Down  \n
+            ✅ Edit Other People's Posts \n
+            ❓ What's more.... 
+            """)
 
 def narrative():
     st.write('# Stack Overflow Helper')
@@ -427,6 +437,10 @@ def narrative():
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
     ''')
     st.markdown('---')
+ 
+    SO_current_situation()
+
+    st.write('## What\'s the problem right now?')
 
     qpy = get_query("""
         SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
