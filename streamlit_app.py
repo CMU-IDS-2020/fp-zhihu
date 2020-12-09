@@ -560,28 +560,32 @@ def tag_user_recommendation():
     tag_id = recommend.get_tag_id_by_name(tags)
 
     st.header('Recommended users for your question')
-    user_num = st.slider(
-        'Select the top k users recommended for you:', 0, 20, 5)
+    user_num = st.number_input(
+            'Select the top k users recommended for you', 0, 20, 5)
     user_id = recommend.get_recommendation_by_tag_id(tag_id, k=user_num)
     user_df = get_user_info(user_id.tolist())
     if st.checkbox('Show raw data for recommended users'):
         st.write(user_df)
-    user_detail = st.checkbox('Show details for each user')
+    # user_detail = st.checkbox('Show details for each user')
     for i, uid in enumerate(user_id):
         row = user_df.loc[user_df['id'] == uid]
         username = row['display_name'].values[0]
         intro = row['about_me'].values[0]
-        st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
-        if intro and user_detail:
-            st.write(intro, unsafe_allow_html=True)
-        elif user_detail:
-            st.write('No introduction provided')
+        # st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
+        my_expander = st.beta_expander(f'Top {i+1}: {username}')
+        with my_expander:
+            if intro:
+                st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
+                st.write(intro, unsafe_allow_html=True)
+            else:
+                st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
+                st.write('No introduction provided')
 
 
 def single_user():
     st.header("Personal Profile Page")
     st.write("The original Stack Overflow's user page lacks the detailed behavior of given user, hence we present additional visualization results together with their existing functionality.")
-    uid = int(st.text_input('Input user id', '16241'))
+    uid = int(st.text_input('Input user ID', '16241'))
     user_data = get_user_timeline([uid])
     get_single_user_timeline(user_data[uid])
     st.write("Click on another page at left to see the user recommendation result!")
@@ -606,30 +610,34 @@ def multi_user():
     with col1:
         friend = list(map(int, st.text_input(
                 'Add friends by IDs, seperated by ","', "2686, 2795, 4855").split(',')))
-        placeholder = st.beta_expander("Your friends")
-        my_expander = st.beta_expander("Recommended users")
-        with my_expander:
-            recommend.reset_followings(base, friend)
-            user_num = st.number_input(
-                'Select the top k recommendations', 0, 20, 5)
-            user_id = recommend.recommend_users_by_history(base, k=user_num)
-            user_df = get_user_info(user_id.tolist())
-            # if st.checkbox('Show raw data for recommended users'):
-            #     st.write(user_df)
-            # user_detail = st.checkbox('Show details for each user')
-            for i, uid in enumerate(user_id):
-                row = user_df.loc[user_df['id'] == uid]
-                username = row['display_name'].values[0]
-                intro = row['about_me'].values[0]
-                st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
-                user_detail = st.checkbox('Show details', key=i)
+        placeholder = st.beta_expander("Your current friends")
+        st.write('----')
+        st.write("<b style='font-size:20px;'>Recommended Users</b>", unsafe_allow_html=True)
+        # with my_expander:
+        recommend.reset_followings(base, friend)
+        user_num = st.number_input(
+            'Select the top k recommendations', 0, 20, 5)
+        user_id = recommend.recommend_users_by_history(base, k=user_num)
+        user_df = get_user_info(user_id.tolist())
+        # if st.checkbox('Show raw data for recommended users'):
+        #     st.write(user_df)
+        # user_detail = st.checkbox('Show details for each user')
+        for i, uid in enumerate(user_id):
+            row = user_df.loc[user_df['id'] == uid]
+            username = row['display_name'].values[0]
+            intro = row['about_me'].values[0]
+            # st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
+            user_expander = st.beta_expander(f"Top {i+1}: {username}")
+            with user_expander:
+                # user_detail = st.checkbox('Show details', key=i)
                 add_friends = st.checkbox('Add to friends', key=i)
-                if intro and user_detail:
+                if intro:
                     st.write(intro, unsafe_allow_html=True)
-                elif user_detail:
+                else:
                     st.write('No introduction provided')
                 if add_friends and uid not in friend:
                     friend.append(uid)
+    
         with placeholder:
             friend_df = get_user_info(friend)
             # if st.checkbox('Show raw data for recommended users'):
