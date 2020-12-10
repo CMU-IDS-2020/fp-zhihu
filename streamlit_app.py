@@ -333,7 +333,7 @@ def get_answer_time_for_each_tag(tags):
       FROM (
         SELECT id, creation_date, title
           , (SELECT AS STRUCT MIN(creation_date) first, COUNT(*) c
-             FROM `{PREFIX}.posts_answers` 
+             FROM `{PREFIX}.posts_answers`
              WHERE a.id=parent_id
           ) answers
           , SPLIT(tags, '|') tags
@@ -426,17 +426,15 @@ def SO_current_situation():
     st.write("<span style='font-size:30px;'>Stack Overflow</span> is the largest online community for programmers to learn, share their knowledge, and advance their careers.", unsafe_allow_html=True)
     st.write(
         "Currently, it has over 10,000,000 registered users in the community who can: ")
-    st.write("""
-        ✅ Ask and Answer Questions \n
-        ✅ Vote Questions and Answers Up or Down  \n
-        ✅ Edit Other People's Posts \n
-        ❓ What's more.... 
-    """)
+    st.write("✅ Ask and Answer Questions")
+    st.write("✅ Vote Questions and Answers Up or Down")
+    st.write("✅ Edit Other People's Posts")
+    st.write("❓ What's more....")
 
 
 def narrative():
     st.write('# Stack Overflow Helper')
-    st.markdown('''
+    st.write('''
         > GitHub project page: https://github.com/CMU-IDS-2020/fp-zhihu
 
         > Dataset credit: [Kaggle](https://www.kaggle.com/stackoverflow/stackoverflow)
@@ -447,15 +445,15 @@ def narrative():
 
     st.write('## What\'s the problem right now?')
 
-    qpy = get_query("""
+    qpy = get_query(f"""
         SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
-        FROM `bigquery-public-data.stackoverflow.posts_questions`
+        FROM `{PREFIX}.posts_questions`
         GROUP BY year
         ORDER BY year
     """)
-    aqpy = get_query("""
+    aqpy = get_query(f"""
         SELECT EXTRACT(YEAR FROM creation_date) AS year, COUNT(*) AS cnt
-        FROM `bigquery-public-data.stackoverflow.posts_questions`
+        FROM `{PREFIX}.posts_questions`
         WHERE answer_count > 0
         GROUP BY year
         ORDER BY year
@@ -484,44 +482,44 @@ def narrative():
     st.write("3. question&answerer: who is both a questioner and a answerer;")
     st.write("4. do-nothinger: who never asked or answered any question.")
 
-    questioner = get_query('''
+    questioner = get_query(f'''
         select count(distinct q.owner_user_id)
-        from `bigquery-public-data.stackoverflow.posts_questions` q
-        left join `bigquery-public-data.stackoverflow.posts_answers` a
+        from `{PREFIX}.posts_questions` q
+        left join `{PREFIX}.posts_answers` a
         on q.owner_user_id = a.owner_user_id
         where a.owner_user_id is null
     ''').iat[0, 0]
 
-    answerer = get_query('''
+    answerer = get_query(f'''
         select count(distinct a.owner_user_id)
-        from `bigquery-public-data.stackoverflow.posts_answers` a
-        left join `bigquery-public-data.stackoverflow.posts_questions` q
+        from `{PREFIX}.posts_answers` a
+        left join `{PREFIX}.posts_questions` q
         on a.owner_user_id = q.owner_user_id
         where q.owner_user_id is null
     ''').iat[0, 0]
 
-    question_and_answerer = get_query('''
-        select count( distinct q.owner_user_id)
-        from `bigquery-public-data.stackoverflow.posts_questions` q
-        inner join `bigquery-public-data.stackoverflow.posts_answers` a 
+    question_and_answerer = get_query(f'''
+        select count(distinct q.owner_user_id)
+        from `{PREFIX}.posts_questions` q
+        inner join `{PREFIX}.posts_answers` a
         on q.owner_user_id = a.owner_user_id
     ''').iat[0, 0]
 
-    do_nothinger = get_query('''
+    do_nothinger = get_query(f'''
         select count(id)
-        from `bigquery-public-data.stackoverflow.users` u
+        from `{PREFIX}.users` u
         left join (
             select distinct owner_user_id
-            from `bigquery-public-data.stackoverflow.posts_answers`
+            from `{PREFIX}.posts_answers`
             union all
             select distinct owner_user_id
-            from `bigquery-public-data.stackoverflow.posts_questions`) b
+            from `{PREFIX}.posts_questions`) b
         on u.id = b.owner_user_id
         where b.owner_user_id is null
     ''').iat[0, 0]
 
-    num_user = get_query(
-        "select count(*) from `bigquery-public-data.stackoverflow.users` ").iat[0, 0]
+    # num_user = get_query(f"select count(*) from `{PREFIX}.users`").iat[0, 0]
+    num_user = sum([questioner, answerer, question_and_answerer, do_nothinger])
 
     # Show result
     user_type_df = pd.DataFrame({
@@ -546,9 +544,9 @@ def narrative():
     st.markdown(
         '1. Different **_tags_** tend to have different answer rates and different average minutes to get an answer.')
 
-    all_tags = get_query("""
+    all_tags = get_query(f"""
         SELECT tag_name
-        FROM `bigquery-public-data.stackoverflow.tags`
+        FROM `{PREFIX}.tags`
         WHERE count >= 1000
         ORDER BY RAND()
         LIMIT 15
@@ -574,8 +572,8 @@ def narrative():
     uid = int(st.text_input('Input user id', '500584'))
     tags_one_user = get_query(f"""
         SELECT questions.tags
-        FROM `bigquery-public-data.stackoverflow.posts_answers` answers INNER JOIN
-        `bigquery-public-data.stackoverflow.posts_questions` questions ON answers.parent_id = questions.id
+        FROM `{PREFIX}.posts_answers` answers INNER JOIN
+        `{PREFIX}.posts_questions` questions ON answers.parent_id = questions.id
         WHERE answers.owner_user_id = {uid}
         -- GROUP BY tags.tag_name
     """)['tags'].tolist()
@@ -603,16 +601,11 @@ def narrative():
         tooltip=['tag', 'count']
     ).properties(width=MAX_WIDTH, height=350))
 
-    # st.markdown("""
-    #     In order to **_increase answer rate_** and **_reduce answer time_**, our helper **_recommends
-    #     users to answer particular questions_** based on the **_tags_**.
-    # """)
     st.header("Our Solution: ")
-    st.markdown("""
-        In order to **_increase answer rate_** and **_reduce answer time_**, our helper: \n
-        ✅ Recommend users to answer particular questions based on the tags. \n
-        ✅ Recommend users for particular users based on their past experiences. 
-    """)
+    st.write(
+        "In order to **_increase answer rate_** and **_reduce answer time_**, our helper:")
+    st.write("✅ Recommend users to answer particular questions based on the tags.")
+    st.write("✅ Recommend users for particular users based on their past experiences.")
 
     st.markdown('---')
     st.text(
@@ -641,14 +634,12 @@ def tag_user_recommendation():
         row = user_df.loc[user_df['id'] == uid]
         username = row['display_name'].values[0]
         intro = row['about_me'].values[0]
-        # st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
         my_expander = st.beta_expander(f'Top {i+1}: {username}')
         with my_expander:
+            st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
             if intro:
-                st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
                 st.write(intro, unsafe_allow_html=True)
             else:
-                st.write(f'[Personal Link](https://stackoverflow.com/users/{uid})')
                 st.write('No introduction provided')
 
 
@@ -663,12 +654,13 @@ def single_user():
 
 def multi_user():
     st.header("Social Overflow")
-    st.markdown('The feature aims to build a "Social Network" on Stack Overflow. \n \
-    This would allow you to be able to follow the questions and answers that are posted by users that you want to watch/monitor.')
+    st.markdown('''
+        This feature aims to build a "Social Network" on Stack Overflow.
+        This would allow you to be able to follow the questions and answers that are posted by users that you want to watch/monitor.
+    ''')
     st.write("Stack Overflow currently doesn't have the social functionality inside their application. We think adding this feature will help users better find their similar users and make connections with each other, and the increasing user-user interaction will result in the higher answer rate.")
     st.markdown(
         "We recommend users that you might be interested in based on your history and you can add them as friends.")
-    # st.markdown("You can click `Launch App!` to view all activities of your friends. ")
     col1, col2, col3 = st.beta_columns([1, 1, 1])
     with col1:
         base = int(st.text_input('Input your user ID', '3122'))
@@ -700,7 +692,6 @@ def multi_user():
             row = user_df.loc[user_df['id'] == uid]
             username = row['display_name'].values[0]
             intro = row['about_me'].values[0]
-            # st.subheader(f'Top {i+1}: [{username}](https://stackoverflow.com/users/{uid})')
             user_expander = st.beta_expander(f"Top {i+1}: {username}")
             with user_expander:
                 # user_detail = st.checkbox('Show details', key=i)
