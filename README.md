@@ -1,6 +1,6 @@
 # CMU Interactive Data Science Final Project
 
-* **Online URL**: http://149.248.51.150/ids-final
+* **Online URL**: http://149.248.51.150/ids-final or https://share.streamlit.io/cmu-ids-2020/fp-zhihu/main
 * **Team members**:
   * Contact person: Yeju Zhou yejuz@andrew.cmu.edu
   * Jiayi Weng jiayiwen@andrew.cmu.edu
@@ -21,7 +21,7 @@ Update towards the end of the project.
 ### Proposal
 
 - [x] The URL at the top of this readme needs to point to your application online. It should also list the names of the team members.
-- [ ] A completed proposal. The contact should submit it as a PDF on Canvas.
+- [x] A completed proposal. The contact should submit it as a PDF on Canvas.
 
 ### Design review
 
