@@ -1,20 +1,27 @@
-# CMU Interactive Data Science Final Project
+# Stack Overflow Helper
 
-* **Online URL**: http://149.248.51.150/ids-final or https://share.streamlit.io/cmu-ids-2020/fp-zhihu/main
+* **Online URL**: https://share.streamlit.io/cmu-ids-2020/fp-zhihu/main or http://149.248.51.150/ids-final
 * **Team members**:
   * Contact person: Yeju Zhou yejuz@andrew.cmu.edu
   * Jiayi Weng jiayiwen@andrew.cmu.edu
   * Xuanyi Li xuanyil@andrew.cmu.edu
   * Xinyue Chen xinyuech@andrew.cmu.edu
 * **Track**: Interactive Visualization/Application
+* [**Report**](/Report.md)
 
-## Description
+## Abstract
 
-Kaggle dataset: https://www.kaggle.com/stackoverflow/stackoverflow
+As the biggest online question-answer site for programmers in the world, Stack Overflow has a large impact on the developer community. However, through their public dataset, we discovered a continued decline in community activity and question-response rates. We propose our Stack Overflow helper with interactive visualization design by adding the recommendation system for tag-user and user-user recommendations to reduce the answer time, increase the answer rate, and facilitate interaction between users. Our tool fills in the gaps in the existing functionality of the Stack Overflow website. It is developed by Streamlit and currently [available online](https://share.streamlit.io/cmu-ids-2020/fp-zhihu/main).
 
 ## Work distribution
 
-Update towards the end of the project.
+Yeju Zhou: Narrative, video
+
+Xinyue Chen: Recommend system
+
+Jiayi Weng: Webpage design (User-User), deployment
+
+Xuanyi Li: Webpage design (Tag-User) and refine
 
 ## Deliverables
 
@@ -31,6 +38,6 @@ Update towards the end of the project.
 ### Final deliverables
 
 - [x] All code for the project should be in the repo.
-- [ ] A 5 minute video demonstration.
-- [ ] Update Readme according to Canvas instructions.
-- [ ] A detailed project report. The contact should submit the video and report as a PDF on Canvas.
+- [x] A 5 minute video demonstration.
+- [x] Update Readme according to Canvas instructions.
+- [x] A detailed project report. The contact should submit the video and report as a PDF on Canvas.
