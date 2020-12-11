@@ -8,6 +8,7 @@
   * Xinyue Chen xinyuech@andrew.cmu.edu
 * **Track**: Interactive Visualization/Application
 * [**Report**](/Report.md)
+* [**Video**](https://www.youtube.com/watch?v=RfN-SCBx0ko)
 
 ## Abstract
 
